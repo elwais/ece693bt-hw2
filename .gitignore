@@ -1,0 +1,12 @@
+.venv/
+data/
+outputs/
+__pycache__/
+*.pyc
+*.pt
+.pytest_cache/
+.pi/
+curr-school
+old-school
+.DS_Store
+*.egg-info/
