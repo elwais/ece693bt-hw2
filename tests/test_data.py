@@ -1,16 +1,24 @@
 """Data contract: scalings, split sizes, disjointness, and reproducibility."""
 
+import numpy as np
 import torch
+from PIL import Image
+
+from typing import cast
 
 from genmodels.data import N_VAL, make_transform, split_indices
+
+
+def _as_set(idx: torch.Tensor) -> set[int]:
+    return set(cast(list[int], idx.tolist()))
 
 
 def test_split_sizes_and_disjoint():
     tr, va = split_indices()
     assert len(va) == N_VAL == 5000
     assert len(tr) == 55000
-    assert len(set(tr.tolist()) & set(va.tolist())) == 0
-    assert len(set(tr.tolist()) | set(va.tolist())) == 60000
+    assert len(_as_set(tr) & _as_set(va)) == 0
+    assert len(_as_set(tr) | _as_set(va)) == 60000
 
 
 def test_split_reproducible_and_seed_sensitive():
@@ -22,9 +30,6 @@ def test_split_reproducible_and_seed_sensitive():
 
 
 def test_scalings_on_a_fake_image():
-    import numpy as np
-    from PIL import Image
-
     arr = np.full((28, 28), 255, dtype=np.uint8)
     arr[0, 0] = 0  # one black pixel, one white pixel
     pil = Image.fromarray(arr)
