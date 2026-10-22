@@ -12,7 +12,7 @@ Unknown to basedpyright. The annotations in this module are the typed boundary:
 they state what torchvision is expected to return, and pyright checks the rest.
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import cast
 
@@ -44,6 +44,24 @@ def make_transform(scaling: str) -> Scaled:
     raise ValueError(f"unknown scaling {scaling!r}; expected 'gan' or 'vae'")
 
 
+def unpack_batch(batch: object) -> tuple[torch.Tensor, torch.Tensor]:
+    """Narrow one DataLoader item to (images, labels), checking types at runtime.
+
+    DataLoader.__next__ is typed as returning Any. Accepting `object` here keeps
+    that Any out of the caller's variables; the isinstance checks do the narrowing.
+    """
+    # default_collate returns a list [images, labels], not a tuple.
+    if not isinstance(batch, (list, tuple)):
+        raise TypeError(f"expected a list or tuple, got {type(batch).__name__}")
+    items = cast(Sequence[object], batch)
+    if len(items) != 2:
+        raise TypeError(f"expected 2 items, got {len(items)}")
+    images, labels = items
+    if not isinstance(images, torch.Tensor) or not isinstance(labels, torch.Tensor):
+        raise TypeError("batch items must be tensors")
+    return images, labels
+
+
 def split_indices(
     n_total: int = N_TRAIN_FULL, n_val: int = N_VAL, seed: int = SPLIT_SEED
 ) -> tuple[torch.Tensor, torch.Tensor]:
@@ -64,8 +82,9 @@ def get_train_val_datasets(
         root=str(root), train=True, download=True, transform=make_transform(scaling)
     )
     train_idx, val_idx = split_indices(len(full))
-    train_list = cast(list[int], train_idx.tolist())  # index tensor -> python ints
-    val_list = cast(list[int], val_idx.tolist())
+    # Iterating a tensor and calling int() avoids tolist(), which pyright reads as partially unknown.
+    train_list = [int(i) for i in train_idx]
+    val_list = [int(i) for i in val_idx]
     return Subset[Sample](full, train_list), Subset[Sample](full, val_list)
 
 

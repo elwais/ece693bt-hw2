@@ -4,13 +4,11 @@ import numpy as np
 import torch
 from PIL import Image
 
-from typing import cast
-
 from genmodels.data import N_VAL, make_transform, split_indices
 
 
 def _as_set(idx: torch.Tensor) -> set[int]:
-    return set(cast(list[int], idx.tolist()))
+    return {int(i) for i in idx}
 
 
 def test_split_sizes_and_disjoint():

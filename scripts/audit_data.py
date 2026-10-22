@@ -10,20 +10,25 @@ The test loader is deliberately not touched.
 """
 
 import hashlib
+from collections.abc import Iterable
 
 import torch
-from torch.utils.data import DataLoader
 
-from genmodels.data import Sample, get_train_val_loaders, split_indices
+from genmodels.data import get_train_val_loaders, split_indices, unpack_batch
 
 
 def sha(t: torch.Tensor) -> str:
     return hashlib.sha256(t.numpy().tobytes()).hexdigest()[:16]
 
 
-def count_rows(loader: DataLoader[Sample]) -> int:
+def first_batch(batches: Iterable[object]) -> tuple[torch.Tensor, torch.Tensor]:
+    return unpack_batch(next(iter(batches)))
+
+
+def count_rows(batches: Iterable[object]) -> int:
     total = 0
-    for xb, _ in loader:
+    for batch in batches:
+        xb, _ = unpack_batch(batch)
         total += int(xb.shape[0])
     return total
 
@@ -31,16 +36,13 @@ def count_rows(loader: DataLoader[Sample]) -> int:
 def main() -> None:
     for scaling in ("gan", "vae"):
         train_loader, val_loader = get_train_val_loaders(scaling, num_workers=0)
-        x, y = next(iter(train_loader))
-        xb: torch.Tensor = x
-        yb: torch.Tensor = y
+        xb, yb = first_batch(train_loader)
         print(
             f"[{scaling}] train batch x shape={tuple(xb.shape)} dtype={xb.dtype} "
             + f"min={float(xb.min()):.4f} max={float(xb.max()):.4f} "
             + f"labels={tuple(yb.shape)} label_range=({int(yb.min())},{int(yb.max())})"
         )
-        xv, _ = next(iter(val_loader))
-        xvb: torch.Tensor = xv
+        xvb, _ = first_batch(val_loader)
         print(
             f"[{scaling}] val batch   x shape={tuple(xvb.shape)} "
             + f"min={float(xvb.min()):.4f} max={float(xvb.max()):.4f}"
