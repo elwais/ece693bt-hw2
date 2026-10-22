@@ -21,3 +21,8 @@ dev = ["pytest"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.basedpyright]
+# torchvision ships no py.typed or stubs. Its values are Unknown to pyright anyway,
+# so this only silences the stub-not-found notice. Revisit: local stubs (see todo).
+reportMissingTypeStubs = "none"
