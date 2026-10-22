@@ -1,8 +1,24 @@
-"""Data contract: pixel scalings."""
+"""Data contract: scalings, split sizes, disjointness, and reproducibility."""
 
 import torch
 
-from genmodels.data import make_transform
+from genmodels.data import N_VAL, make_transform, split_indices
+
+
+def test_split_sizes_and_disjoint():
+    tr, va = split_indices()
+    assert len(va) == N_VAL == 5000
+    assert len(tr) == 55000
+    assert len(set(tr.tolist()) & set(va.tolist())) == 0
+    assert len(set(tr.tolist()) | set(va.tolist())) == 60000
+
+
+def test_split_reproducible_and_seed_sensitive():
+    a_tr, a_va = split_indices(seed=0)
+    b_tr, b_va = split_indices(seed=0)
+    c_tr, _ = split_indices(seed=1)
+    assert torch.equal(a_tr, b_tr) and torch.equal(a_va, b_va)
+    assert not torch.equal(a_va, c_tr[:N_VAL])
 
 
 def test_scalings_on_a_fake_image():
