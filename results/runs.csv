@@ -1,0 +1,1 @@
+run_dir,family,lr,lr_D,beta,epochs,seed,checkpoint,fid_val5k,fid_test10k,notes
