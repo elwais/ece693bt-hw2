@@ -1,150 +1,31 @@
-# Variational Auto-Encoders (VAE), Normalizing Flows and Generative Adversarial Networks (GAN) Homework
+# Setup: GAN and VAE Homework on MNIST
+
+> **Read this first.** `Assignment2_GANs.pdf` governs the deliverables. The main body of this file is the enforced spec: the model architecture, training settings, and checkpoint/logging requirements that the PDF points to, plus dataset preparation and environment. Anything not written here is not required. Project layout is free. The appendix is an optional default layout and workflow, so there is a sensible starting point.
 
 ## Overview
 
-This homework encourages you to use the coding agent to build VAE, NF and GANs, comparing their performance. 
+Assignment 2 compares a DCGAN, a WGAN and a VAE on MNIST. A small classifier's penultimate-layer features φ(x) are used to compute FID. This file has no training spec for the WGAN and VAE beyond data scaling; see the PDF.
 
-## Project Structure
+## 1. Environment
 
-The repository grows in three stages — **DCGAN → VAE → Flow-VAE** — and all three share
-the same data pipeline, utilities, and entry point. Only the model and its training loop change.
+PyTorch, ideally with GPU access. PDF Part 0 lists the options (the course GPU server, your own NVIDIA machine, or Google Colab). Installation commands are in the appendix.
 
-```
-dcgan/
-├── README.md
-├── pyproject.toml              # package metadata + dependencies (pip install -e .)
-│
-├── configs/                    # one YAML per experiment; no hard-coded hyperparameters
-│   ├── classifier.yaml
-│   ├── dcgan.yaml
-│   ├── vae.yaml
-│   └── flow_vae.yaml
-│
-├── src/genmodels/              # importable package (the "library")
-│   ├── __init__.py
-│   ├── data.py                 # MNIST loaders; [-1, 1] scaling for GAN, [0, 1] for VAE
-│   ├── utils.py                # seeding, device selection, checkpoint save/load, logging
-│   ├── viz.py                  # sample grids, reconstructions, latent interpolation
-│   ├── losses.py               # GAN BCE loss, Gaussian/Bernoulli ELBO, flow ELBO (+ log-det)
-│   ├── models/
-│   │   ├── classifier.py       # MNIST CNN classifier; its 128-d features φ(x) are used for FID
-│   │   ├── dcgan.py            # Generator, Discriminator, weight init
-│   │   ├── vae.py              # conv Encoder/Decoder, reparameterization
-│   │   ├── flows.py            # flow layers (e.g. planar, radial, IAF) returning (z, log_det)
-│   │   └── flow_vae.py         # VAE whose posterior q(z|x) is refined by a stack of flows
-│   └── trainers/
-│       ├── classifier_trainer.py  # supervised training; per-epoch train/val/test loss
-│       ├── gan_trainer.py      # alternating D/G updates
-│       └── vae_trainer.py      # ELBO training; used for both VAE and Flow-VAE
-│
-├── scripts/                    # thin command-line entry points
-│   ├── prepare_data.py         # download MNIST to data/ once
-│   ├── train.py                # python scripts/train.py --config configs/dcgan.yaml
-│   ├── sample.py               # generate images from a saved checkpoint
-│   └── evaluate.py             # test-set ELBO / NLL, sample quality, comparison figures
-│
-├── notebooks/                  # walkthroughs for students (import from src/, no model code here)
-│   ├── 01_dcgan.ipynb
-│   ├── 02_vae.ipynb
-│   └── 03_flow_vae.ipynb
-│
-├── tests/                      # fast sanity checks (pytest)
-│   ├── test_shapes.py          # every model maps inputs to the expected output shapes
-│   └── test_flows.py           # log-det of each flow matches a brute-force Jacobian
-│
-├── data/                       # MNIST download location
-└── outputs/                    # run artifacts (checkpoints, samples, logs)
-    └── <model>/<YYYYmmdd-HHMMSS>/
-        ├── config.yaml         # frozen copy of the config used for this run
-        ├── checkpoints/
-        ├── samples/
-        └── logs/
-```
+## 2. MNIST data
 
-### Design principles
-
-- **Library vs. scripts vs. notebooks.** Model and training code lives only in `src/genmodels/`.
-  Scripts and notebooks import from it, so a notebook never holds its own copy of a model.
-- **Config-driven experiments.** Everything that varies between runs (latent dim, learning rate,
-  epochs, number of flow layers, seed) lives in `configs/*.yaml`. Each run saves a frozen copy of
-  its config next to its outputs, so results can be reproduced.
-- **Share what can be shared.** The Flow-VAE is a VAE whose posterior is transformed by flows, so it
-  reuses the VAE encoder/decoder and `vae_trainer.py`; it only adds `flows.py` and the
-  `log_det` term in the loss. The three models can then be compared directly.
-- **Reproducibility.** Fixed seeds, logged configs, and timestamped output folders.
-
-## Setup
-
-### 1. PyTorch environment
-
-Requires Python 3.10+. A GPU is recommended but not required; MNIST also trains on a CPU, just slower.
-
-```bash
-# Create and activate a virtual environment in the project folder
-python3 -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\activate
-pip install --upgrade pip
-
-# Install PyTorch + torchvision. Pick the command for your platform at
-# https://pytorch.org/get-started/locally/ . For example:
-pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128   # NVIDIA GPU (CUDA 12.8)
-# pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu   # CPU only
-
-# Install this project and the remaining dependencies
-# (numpy, matplotlib, pyyaml, tqdm; dev extras: pytest, jupyter)
-pip install -e ".[dev]"
-```
-
-Check the installation:
-
-```bash
-python -c "import torch; print(torch.__version__, 'CUDA:', torch.cuda.is_available())"
-```
-
-`CUDA: True` means the GPU is visible. On a CPU-only machine `False` is expected.
-
-Once everything works, record the exact versions so the environment can be recreated:
-
-```bash
-pip freeze > requirements-lock.txt
-```
-
-### 2. MNIST dataset
-
-MNIST has 60,000 training and 10,000 test images of handwritten digits, 28×28 grayscale
-(about 50 MB). It is downloaded with `torchvision.datasets.MNIST` into `data/`:
-
-```bash
-python scripts/prepare_data.py     # downloads MNIST to data/MNIST/ (run once)
-```
-
-Downloading ahead of time means training never needs internet access (useful on clusters
-where compute nodes are offline). Training scripts also download it automatically if it is missing.
-
-How the data is used (implemented in `src/genmodels/data.py`):
+MNIST has 60,000 training and 10,000 test images of handwritten digits, 28×28 grayscale. Download it once into `data/` before training.
 
 | | Setting |
 |---|---|
 | Splits | 55,000 train / 5,000 validation (fixed seed) from the training set; the 10,000 test images are used only for final results |
-| Image size | kept at 28×28, 1 channel |
-| DCGAN scaling | `ToTensor()` + `Normalize((0.5,), (0.5,))` → pixels in [-1, 1], matching the generator's Tanh output |
-| VAE / Flow-VAE scaling | `ToTensor()` → pixels in [0, 1], for the Bernoulli (BCE) reconstruction loss |
-| VAE / Flow-VAE (optional) | dynamic binarization (resample binary pixels each batch), as in the flow-VAE papers |
-| DataLoader | `batch_size=128`, `shuffle=True` for training, `num_workers=4`, `pin_memory=True` on GPU |
+| Image size | 28×28, 1 channel |
+| Classifier and DCGAN scaling | `ToTensor()` + `Normalize((0.5,), (0.5,))` → pixels in [-1, 1], matching the generator's Tanh output and the classifier input |
+| VAE scaling | `ToTensor()` → pixels in [0, 1], for the Bernoulli (BCE) reconstruction loss |
+| Batch size | 128 |
+| Shuffling | training split shuffled; validation and test not |
 
-### 3. Sanity check
+## 3. Task 0: Classifier (for FID features)
 
-```bash
-pytest -q
-```
-
-## Task 0: Training a Classification Network
-
-Before building generative models, train a CNN classifier on MNIST. Besides being a warm-up, its
-penultimate-layer activations φ(x) serve as the feature space for computing FID (Fréchet Inception
-Distance, with this network in place of Inception) to compare the samples of the generative models.
-Implement the model in `src/genmodels/models/classifier.py`, the training loop in
-`src/genmodels/trainers/classifier_trainer.py`, and put the hyperparameters in `configs/classifier.yaml`.
+Train a CNN classifier on MNIST. Its penultimate-layer activations φ(x) are the feature space for FID, which compares the samples of the generative models.
 
 ### Model structure
 
@@ -160,9 +41,7 @@ Implement the model in `src/genmodels/models/classifier.py`, the training loop i
 | 7 | Dropout(0.5) | 128 |
 | 8 | FC(128→10) (logits; softmax inside `nn.CrossEntropyLoss`) | 10 |
 
-- The images use the same [-1, 1] scaling as the GAN data, so generated samples can be fed to the
-  classifier (and to φ) directly.
-- Extract φ(x) with `model.embed(x)` in `eval()` mode, so dropout is off.
+- φ(x) is the post-ReLU output of layer 6. Expose it, e.g. via a `model.embed(x)` method, and take it in `eval()` mode so dropout is off. The name `embed` is the appendix's convention, not a requirement.
 
 ### Training settings
 
@@ -173,19 +52,15 @@ Implement the model in `src/genmodels/models/classifier.py`, the training loop i
 | Batch size | 128 |
 | Epochs | 30 |
 | Data | 55,000 train / 5,000 validation / 10,000 test (same split as the generative models) |
+| Logging | training, validation and test loss and accuracy at the end of every epoch |
 
-## Task 1: Building and Training a DCGAN
+## 4. Task 1: DCGAN
 
-Build a DCGAN (Radford et al., 2015) that generates 28×28 MNIST digits. Implement the model in
-`src/genmodels/models/dcgan.py`, the training loop in `src/genmodels/trainers/gan_trainer.py`,
-and put the hyperparameters in `configs/dcgan.yaml`.
+Build a DCGAN (Radford et al., 2015) that generates 28×28 MNIST digits. Both networks are scaled down to 28×28: three convolutional layers each, no pooling, and no fully connected hidden layers.
 
-### Model structure
+### Generator
 
-The model structure is a DCGAN scaled down to 28×28: both networks use three convolutional
-layers with no pooling and no fully connected hidden layers.
-
-**Generator** (latent vector `z` → image)
+Input `z` → image.
 
 | Layer | Operation | Output shape |
 |---|---|---|
@@ -194,7 +69,9 @@ layers with no pooling and no fully connected hidden layers.
 | 2 | ConvTranspose2d(256→128, kernel 4, stride 2, padding 1) + BatchNorm + ReLU | 128×14×14 |
 | 3 | ConvTranspose2d(128→1, kernel 4, stride 2, padding 1) + Tanh | 1×28×28 |
 
-**Discriminator** (image → real/fake score)
+### Discriminator
+
+Image → real/fake score.
 
 | Layer | Operation | Output shape |
 |---|---|---|
@@ -202,14 +79,11 @@ layers with no pooling and no fully connected hidden layers.
 | 2 | Conv2d(64→128, kernel 4, stride 2, padding 1) + BatchNorm + LeakyReLU(0.2) | 128×7×7 |
 | 3 | Conv2d(128→1, kernel 7, stride 1, padding 0) | 1×1×1 (one logit per image) |
 
-- The discriminator outputs a raw logit. The Sigmoid is applied inside the loss
-  (`nn.BCEWithLogitsLoss`), which is numerically more stable than a Sigmoid layer followed by `nn.BCELoss`.
+- The discriminator outputs a raw logit. The Sigmoid is applied inside the loss (`nn.BCEWithLogitsLoss`), which is more numerically stable than a Sigmoid layer followed by `nn.BCELoss`.
 - Weight initialization: conv weights ~ N(0, 0.02), BatchNorm weights ~ N(1, 0.02), all biases 0.
-- Real images are scaled to [-1, 1] to match the generator's Tanh output (see [MNIST dataset](#2-mnist-dataset)).
+- Real images are scaled to [-1, 1] to match the generator's Tanh output (§2).
 
 ### Training settings
-
-The learning rate is set to **2e-4** for both the generator and the discriminator.
 
 | Setting | Value |
 |---|---|
@@ -233,9 +107,7 @@ All files go into the run folder `outputs/dcgan/<YYYYmmdd-HHMMSS>/`.
 | Every epoch (and every ~100 steps in epoch 1) | 8×8 sample grid from a **fixed** set of 64 noise vectors | `samples/epoch_XXX.png` |
 | Every 50 steps | generator and discriminator losses, mean D(x), mean D(G(z)) | `logs/losses.pth` |
 
-**Note: store the losses of both the generator and the discriminator in a `.pth` file**, so they can
-be viewed later in a Jupyter notebook. Save a dictionary of plain Python lists (use `.item()` on each
-loss tensor) with `torch.save`, and overwrite it at the end of every epoch so it is never lost:
+**Store the losses of both the generator and the discriminator in a `.pth` file**, so they can be viewed later in a Jupyter notebook. Save a dictionary of plain Python lists (use `.item()` on each loss tensor) with `torch.save`, and overwrite it at the end of every epoch so it is never lost:
 
 ```python
 history = {"step": [], "epoch": [], "loss_G": [], "loss_D": [], "D_x": [], "D_G_z": []}
@@ -255,25 +127,128 @@ plt.plot(history["step"], history["loss_D"], label="Discriminator")
 plt.xlabel("step"); plt.ylabel("loss"); plt.legend(); plt.show()
 ```
 
-### Deliverables
+## 5. Parts 2 and 3: WGAN and VAE
 
-_TBD_
+This file has no training spec for these parts beyond the data scaling in §2 (VAE: [0, 1]). See `Assignment2_GANs.pdf`, Parts 2 and 3.
 
-## Training
+## 6. Deliverables
 
-```bash
-python scripts/train.py --config configs/classifier.yaml
-python scripts/train.py --config configs/dcgan.yaml
-python scripts/train.py --config configs/vae.yaml
-python scripts/train.py --config configs/flow_vae.yaml
-```
-
-_More details TBD._
-
-## Results
-
-_TBD_
+Not restated here. `Assignment2_GANs.pdf` defines them: Part 0 (2 items), Part 1 (5), Part 2 (3), Part 3 (5).
 
 ## References
 
 - Radford, Metz, Chintala. *Unsupervised Representation Learning with Deep Convolutional Generative Adversarial Networks*. arXiv:1511.06434
+
+---
+
+# Appendix: Project Structure Template and Setup
+
+> **Optional default.** Nothing in this appendix is required. The PDF and the main body above are the spec. This flat layout is one reasonable default that stays close to the original plan. Replace any part of it with your own design.
+
+## A.1 Project tree
+
+One module per assignment part, at the repository root:
+
+```
+hw2/                               # repository root
+├── README.md                      # how to run each part; write-up notes
+├── pyproject.toml                 # project metadata, dependencies, pytest and basedpyright settings
+├── requirements-lock.txt          # pip freeze of the working environment
+├── .gitignore                     # venv, data, outputs, checkpoints, caches
+├── Setup_GAN.md                   # this file
+├── Assignment2_GANs.pdf           # the assignment (authoritative for deliverables)
+├── data.py                        # MNIST download (python data.py); [-1,1] and [0,1] scalings; fixed 55k/5k split
+├── utils.py                       # seeding, device choice, run-folder and args.json helpers, checkpoint save/load
+├── classifier.py                  # Part 0: MNIST CNN with embed() = φ(x); training loop; argparse entry point
+├── dcgan.py                       # Part 1: Generator, Discriminator, weight init; GAN training loop; entry point
+├── wgan.py                        # Part 2: WGAN critic and training loop; imports Generator from dcgan.py
+├── vae.py                         # Part 3: conv Encoder, Decoder, reparameterization, ELBO loss; entry point
+├── fid.py                         # FID from φ features; imported by every part
+├── figures.py                     # sample grids, loss curves, latent-probe and comparison figures
+├── audit_data.py                  # prints batch shapes, value ranges, split sizes, and index hashes
+├── queue.sh                       # runs a list of commands in sequence, logging each
+├── tests/
+│   └── test_data.py               # split sizes, scaling ranges, deterministic split (pytest)
+├── results/
+│   └── runs.csv                   # one row per finished run (columns in the header)
+├── data/                          # MNIST download location (git-ignored)
+└── outputs/                       # run artifacts (git-ignored)
+    └── <model>/<YYYYmmdd-HHMMSS>/
+        ├── args.json              # parsed arguments of this run (written once, never changed)
+        ├── checkpoints/
+        ├── samples/
+        └── logs/
+```
+
+## A.2 Design principles
+
+- **One module per part.** Each part has one file that holds its model, training loop and entry point. Empty placeholders are fine until the part is written.
+- **Share what can be shared.** `wgan.py` and `vae.py` reuse `Generator` from `dcgan.py`. `fid.py` is used by every part, so all FID numbers use the same φ and scaling.
+- **Hyperparameters as argparse flags.** Each flag's default is the Setup value (for example `--lr 2e-4`, `--batch-size 128`, `--epochs 25`, `--seed 0`). No hyperparameter is hard-coded in a training loop.
+- **`args.json` per run.** At the start of each run, the parsed arguments are written to `outputs/<model>/<ts>/args.json`. This replaces a config file and is never edited afterwards. Checkpoints store the same dictionary under `config`, the Setup's name for that field.
+- **Fixed seeds.** Split, weight initialization and data-loader shuffling each take a seed (default 0).
+- **Timestamped run folders.** Each run creates `outputs/<model>/<YYYYmmdd-HHMMSS>/` at start, so runs never overwrite each other.
+
+## A.3 Environment setup
+
+```bash
+# Create and activate a virtual environment in the project folder
+python3 -m venv .venv                # or: uv venv --python 3.12 .venv
+source .venv/bin/activate            # Windows: .venv\Scripts\activate
+pip install --upgrade pip
+
+# PyTorch + torchvision: pick the command for your platform at https://pytorch.org/get-started/locally/
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128   # NVIDIA GPU (CUDA 12.8)
+# pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu   # CPU only
+# Apple Silicon: the default macOS wheels include MPS: pip install torch torchvision
+
+# Remaining dependencies. The project is not installed; run scripts from the repo root.
+pip install numpy matplotlib pyyaml tqdm pytest
+```
+
+Check the installation:
+
+```bash
+python -c "import torch; print(torch.__version__, 'CUDA:', torch.cuda.is_available())"
+# Apple Silicon:
+python -c "import torch; print(torch.__version__, 'MPS:', torch.backends.mps.is_available())"
+```
+
+Once everything works, record the exact versions:
+
+```bash
+pip freeze > requirements-lock.txt
+```
+
+Recreate the environment with `pip install -r requirements-lock.txt`. The lock file is platform-specific (it pins the wheels you installed).
+
+## A.4 Data
+
+```bash
+python data.py          # downloads MNIST to data/MNIST/ (once); prints 60000 / 10000
+python audit_data.py    # optional: batch shapes, value ranges, split sizes, index hashes
+```
+
+Downloading ahead of time means training never needs internet access, which helps on clusters where compute nodes are offline.
+
+DataLoader defaults in `data.py`: `num_workers=4`; `pin_memory=True` only when CUDA is available.
+
+**Optional: dynamic binarization.** For a VAE you may binarize each batch by sampling `x ~ Bernoulli(x)` every time it is loaded. It is not required by the PDF. If you use it, say so in the write-up.
+
+## A.5 Example commands
+
+```bash
+python classifier.py              # Part 0 with the Setup defaults
+python dcgan.py                   # Part 1 baseline (lr 2e-4 for both networks)
+python dcgan.py --lr-d 4e-3       # Part 1 item 4: discriminator learning rate 20x
+python audit_data.py              # data pipeline check
+pytest -q                         # sanity checks
+```
+
+## A.6 Sanity checks
+
+```bash
+pytest -q
+```
+
+`tests/test_data.py` checks the split sizes (55,000 / 5,000), the two pixel ranges, and that the split is deterministic for a given seed. The test paths and import path are set in `pyproject.toml`.
