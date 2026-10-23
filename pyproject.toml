@@ -25,3 +25,10 @@ typeCheckingMode = "strict"
 # torchvision ships no py.typed or stubs. Its values are Unknown to pyright anyway,
 # so this only silences the stub-not-found notice. Revisit: local stubs (see todo).
 reportMissingTypeStubs = "none"
+# strict reports Unknown (missing types) but not Any (declared as "anything").
+# PyTorch declares Any in common places, e.g. nn.Module.__call__ returns Any, so
+# model(x) is Any and autocomplete is lost. Flag both. Fix at the source with
+# cast(...) or a typed __call__; suppress per line with
+# `# pyright: ignore[reportAny]`.
+reportAny = "error"
+reportExplicitAny = "error"
