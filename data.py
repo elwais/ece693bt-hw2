@@ -1,5 +1,9 @@
 """MNIST pixel scalings and the fixed train/validation split (Setup_GAN.md section 2).
 
+Download once, then train offline:
+
+    python data.py
+
   * "gan": ToTensor + Normalize(0.5, 0.5) -> pixels in [-1, 1]
            (matches the generator's Tanh output and the classifier input)
   * "vae": ToTensor -> pixels in [0, 1]
@@ -21,8 +25,8 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision import datasets, transforms
 
-# Repo root is two levels above src/genmodels/data.py.
-DATA_ROOT = Path(__file__).resolve().parents[2] / "data"
+# This file sits at the repo root, so the root is parents[0].
+DATA_ROOT = Path(__file__).resolve().parents[0] / "data"
 
 SPLIT_SEED = 0
 N_VAL = 5000
@@ -135,3 +139,10 @@ def get_test_loader(
         num_workers=num_workers,
         pin_memory=torch.cuda.is_available(),
     )
+
+
+if __name__ == "__main__":
+    # Download both MNIST splits into data/ (skipped if already present).
+    train_set = datasets.MNIST(root=str(DATA_ROOT), train=True, download=True)
+    test_set = datasets.MNIST(root=str(DATA_ROOT), train=False, download=True)
+    print(f"MNIST at {DATA_ROOT}: train={len(train_set)} test={len(test_set)}")

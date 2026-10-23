@@ -1,6 +1,6 @@
 """A2 audit drill: print what the data pipeline actually produces.
 
-    python scripts/audit_data.py
+    python audit_data.py
 
 Prints, for each scaling: one training batch's shape, dtype, and min/max.
 Prints the number of rows each train and validation loader yields in one pass.
@@ -14,7 +14,7 @@ from collections.abc import Iterable
 
 import torch
 
-from genmodels.data import get_train_val_loaders, split_indices, unpack_batch
+from data import get_train_val_loaders, split_indices, unpack_batch
 
 
 def sha(t: torch.Tensor) -> str:
