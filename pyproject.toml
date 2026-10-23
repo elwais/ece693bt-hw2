@@ -20,6 +20,8 @@ pythonpath = ["."]
 testpaths = ["tests"]
 
 [tool.basedpyright]
+# basedpyright defaults to "all"; this repo uses "strict" instead.
+typeCheckingMode = "strict"
 # torchvision ships no py.typed or stubs. Its values are Unknown to pyright anyway,
 # so this only silences the stub-not-found notice. Revisit: local stubs (see todo).
 reportMissingTypeStubs = "none"
