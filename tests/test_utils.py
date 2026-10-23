@@ -3,7 +3,7 @@ from dataclasses import field
 import pytest
 import torch.nn as nn
 
-from utils import nn_dataclass
+from utils import built, nn_dataclass
 
 
 @nn_dataclass
@@ -64,6 +64,27 @@ def test_init_false_field_uses_default_and_is_not_a_parameter() -> None:
     assert (c.start, c.count) == (5, 10)
     with pytest.raises(TypeError):
         _ = Counter(5, 7)  # pyright: ignore[reportCallIssue]
+
+
+
+def test_built_field_is_fresh_per_instance_and_not_a_parameter() -> None:
+    @nn_dataclass
+    class Net(nn.Module):
+        width: int = 4
+        head: nn.Linear = built(lambda: nn.Linear(2, 2))
+
+    a, b = Net(), Net(8)
+    assert a.head is not b.head  # each instance builds its own module
+    assert "head.weight" in dict(a.named_parameters())  # registered as a submodule
+    with pytest.raises(TypeError):
+        _ = Net(head=nn.Linear(2, 2))  # pyright: ignore[reportCallIssue]
+
+
+
+def test_built_rejects_a_module_instead_of_a_factory() -> None:
+    with pytest.raises(TypeError, match="factory, not a module"):
+        # A module type-checks as Callable[..., Any], so T is inferred as Any.
+        _ = built(nn.Linear(2, 2))  # pyright: ignore[reportAny]
 
 
 class NotAModule:

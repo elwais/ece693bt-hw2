@@ -1,8 +1,9 @@
 """A modified dataclass that removes boilerplate associated with making custom `nn.Module`s."""
 
 import inspect
-from dataclasses import MISSING, Field, dataclass, fields
-from typing import TYPE_CHECKING, TypeVar, cast
+from collections.abc import Callable
+from dataclasses import MISSING, Field, dataclass, field, fields
+from typing import TYPE_CHECKING, Literal, TypeVar, cast
 
 import torch.nn as nn
 from typing_extensions import dataclass_transform
@@ -11,6 +12,7 @@ if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 
 M = TypeVar("M", bound=nn.Module)
+T = TypeVar("T")
 
 # Marks "argument not supplied". A private object, so None stays a valid value.
 _UNSET: object = object()
@@ -40,7 +42,38 @@ def _require_module_class(obj: object) -> type[nn.Module]:
     return obj
 
 
-@dataclass_transform(eq_default=False)
+def built(default_factory: Callable[[], T], *, init: Literal[False] = False) -> T:
+    """Declare a field that the class builds itself, rather than taking as an argument.
+
+    Shorthand for ``field(init=False, default_factory=default_factory)``. Use it
+    for fixed architecture, as opposed to settings passed to the constructor::
+
+        head: nn.Sequential = built(lambda: nn.Sequential(nn.Linear(128, 10)))
+
+    Pass a factory (e.g. a ``lambda``), not a module. ``default_factory`` is
+    called once per instance, so each instance gets its own module and weights.
+    A module created inline in the class body would be created once and shared
+    by every instance.
+
+    The parameter names are part of the contract with ``dataclass_transform``:
+    ``default_factory`` tells the type checker the field has a default, and
+    ``init: Literal[False] = False`` tells it the field is not an ``__init__``
+    parameter. Do not pass ``init``; it exists only for the type checker.
+
+    Raises:
+        TypeError: if ``default_factory`` is an ``nn.Module``. A module is
+            callable, so the type checker accepts it, but calling it with no
+            arguments would fail later inside ``forward``.
+    """
+    if isinstance(default_factory, nn.Module):
+        raise TypeError(
+            "built() takes a factory, not a module: "
+            + f"write built(lambda: {type(default_factory).__name__}(...))"
+        )
+    return field(init=init, default_factory=default_factory)
+
+
+@dataclass_transform(eq_default=False, field_specifiers=(field, built))
 def nn_dataclass(cls: type[M]) -> type[M]:
     """Give an nn.Module subclass dataclass-style fields and a generated __init__.
 
@@ -48,6 +81,18 @@ def nn_dataclass(cls: type[M]) -> type[M]:
     ``@dataclass``. The generated ``__init__`` calls ``nn.Module.__init__``
     first, so assigned submodules and Parameters register normally. A
     ``__post_init__`` method, if defined, runs last.
+
+    Field specifiers: ``dataclass_transform`` lists ``field`` and ``built`` in
+    ``field_specifiers``. Without that, the type checker treats
+    ``x: T = field(...)`` as a plain default value and ignores the arguments
+    to ``field``. ``field(init=False, ...)`` would then still appear as an
+    ``__init__`` parameter to the type checker, while the runtime rejects it
+    with ``TypeError``. Listing ``field`` makes the checker honor ``init``,
+    ``kw_only``, ``default`` and ``default_factory``, so the static signature
+    matches the generated one. Only functions in this tuple are recognized:
+    any other helper that wraps ``field`` is treated as a plain default, which
+    is why ``built`` is listed alongside ``field`` (see PEP 681, "Field
+    specifiers").
 
     Limitations: ``cls`` must subclass ``nn.Module`` directly, because the
     generated ``__init__`` calls ``nn.Module.__init__`` and skips any
