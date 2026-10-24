@@ -2,7 +2,7 @@
 name = "genmodels"
 version = "0.1.0"
 description = "MNIST classifier, DCGAN, WGAN and VAE for ECE-693BT Assignment 2"
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 dependencies = [
     "torch",
     "torchvision",
