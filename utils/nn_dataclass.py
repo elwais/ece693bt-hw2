@@ -1,9 +1,9 @@
 """A modified dataclass that removes boilerplate associated with making custom `nn.Module`s."""
 
 import inspect
-from collections.abc import Callable
 from dataclasses import MISSING, Field, dataclass, field, fields
-from typing import TYPE_CHECKING, Literal, TypeVar, cast
+from types import CodeType
+from typing import TYPE_CHECKING, Literal, Protocol, TypeVar, cast
 
 import torch.nn as nn
 from typing_extensions import dataclass_transform
@@ -13,6 +13,22 @@ if TYPE_CHECKING:
 
 M = TypeVar("M", bound=nn.Module)
 T = TypeVar("T")
+T_co = TypeVar("T_co", covariant=True)
+
+
+class Factory(Protocol[T_co]):
+    """A zero-argument function or class that builds a value.
+
+    Requiring ``__code__`` is what excludes modules: an ``nn.Module`` is
+    callable, so it satisfies ``Callable[[], T]``, but it has no ``__code__``.
+    Lambdas and ``def`` functions do, and so (to the type checker) do classes,
+    so ``built(nn.Sequential)`` is accepted. ``functools.partial`` and other
+    callable objects are rejected; wrap them in a lambda.
+    """
+
+    __code__: CodeType
+
+    def __call__(self) -> T_co: ...
 
 # Marks "argument not supplied". A private object, so None stays a valid value.
 _UNSET: object = object()
@@ -42,7 +58,7 @@ def _require_module_class(obj: object) -> type[nn.Module]:
     return obj
 
 
-def built(default_factory: Callable[[], T], *, init: Literal[False] = False) -> T:
+def built(default_factory: Factory[T], *, init: Literal[False] = False) -> T:
     """Declare a field that the class builds itself, rather than taking as an argument.
 
     Shorthand for ``field(init=False, default_factory=default_factory)``. Use it
@@ -60,10 +76,12 @@ def built(default_factory: Callable[[], T], *, init: Literal[False] = False) -> 
     ``init: Literal[False] = False`` tells it the field is not an ``__init__``
     parameter. Do not pass ``init``; it exists only for the type checker.
 
+    Passing a module is a type error: ``default_factory`` is a ``Factory``,
+    which a module does not satisfy (it has no ``__code__``).
+
     Raises:
-        TypeError: if ``default_factory`` is an ``nn.Module``. A module is
-            callable, so the type checker accepts it, but calling it with no
-            arguments would fail later inside ``forward``.
+        TypeError: if ``default_factory`` is an ``nn.Module``. This repeats
+            the type check at runtime, for callers that are not type-checked.
     """
     if isinstance(default_factory, nn.Module):
         raise TypeError(

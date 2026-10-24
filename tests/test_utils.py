@@ -85,8 +85,21 @@ def test_built_field_is_fresh_per_instance_and_not_a_parameter() -> None:
 
 def test_built_rejects_a_module_instead_of_a_factory() -> None:
     with pytest.raises(TypeError, match="factory, not a module"):
-        # A module type-checks as Callable[..., Any], so T is inferred as Any.
-        _ = built(nn.Linear(2, 2))  # pyright: ignore[reportAny]
+        # Also a type error: a module has no __code__, so it is not a Factory.
+        _ = built(nn.Linear(2, 2))  # pyright: ignore[reportArgumentType, reportUnknownVariableType]
+
+
+def test_built_accepts_a_def_function_and_a_class() -> None:
+    def make_head() -> nn.Linear:
+        return nn.Linear(2, 2)
+
+    @nn_dataclass
+    class Net(nn.Module):
+        head: nn.Linear = built(make_head)
+        body: nn.Sequential = built(nn.Sequential)
+
+    net = Net()
+    assert isinstance(net.head, nn.Linear) and isinstance(net.body, nn.Sequential)
 
 
 class NotAModule:
