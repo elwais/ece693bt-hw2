@@ -137,5 +137,5 @@ if __name__ == "__main__":
             save_params(model, Path("outputs/classifier.pt"))
             min_epoch_loss = current_epoch_loss
 
-    with open("outputs/classifier_history.json", "w") as f:
-        json.dump(history, f)
+        with open("outputs/classifier_history.json", "w") as f:
+            json.dump(history, f)
