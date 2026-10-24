@@ -1,9 +1,11 @@
 from dataclasses import field
+from pathlib import Path
 
 import pytest
+import torch
 import torch.nn as nn
 
-from utils import built, nn_dataclass
+from utils import built, load_params, nn_dataclass, save_params
 
 
 @nn_dataclass
@@ -118,3 +120,19 @@ def test_kw_only_field_must_be_passed_by_keyword() -> None:
     assert KwOnly(5, b=7).b == 7
     with pytest.raises(TypeError):
         _ = KwOnly(1, 5)  # pyright: ignore[reportCallIssue]
+
+
+def test_save_then_load_params_round_trip(tmp_path: Path) -> None:
+    src, dst = nn.Linear(3, 2), nn.Linear(3, 2)
+    path = tmp_path / "sub" / "params.pt"
+    save_params(src, path)
+    assert load_params(dst, path) is dst
+    assert torch.equal(src.weight, dst.weight) and torch.equal(src.bias, dst.bias)
+    assert not path.with_suffix(".pt.tmp").exists()
+
+
+def test_load_params_rejects_a_different_architecture(tmp_path: Path) -> None:
+    path = tmp_path / "params.pt"
+    save_params(nn.Linear(3, 2), path)
+    with pytest.raises(RuntimeError):
+        _ = load_params(nn.Linear(4, 2), path)
