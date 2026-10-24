@@ -5,6 +5,7 @@ from .seed_everything import seed_everything
 from .eval_mode import eval_mode
 from .params import load_params, save_params
 from .get_device import get_preferred_device
+from .as_tensor import as_tensor
 
 __all__ = [
     "nn_dataclass",
@@ -14,4 +15,5 @@ __all__ = [
     "save_params",
     "load_params",
     "get_preferred_device",
+    "as_tensor",
 ]

@@ -5,7 +5,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from utils import built, load_params, nn_dataclass, save_params
+from utils import as_tensor, built, load_params, nn_dataclass, save_params
 
 
 @nn_dataclass
@@ -136,3 +136,14 @@ def test_load_params_rejects_a_different_architecture(tmp_path: Path) -> None:
     save_params(nn.Linear(3, 2), path)
     with pytest.raises(RuntimeError):
         _ = load_params(nn.Linear(4, 2), path)
+
+
+def test_as_tensor_passes_a_tensor_through_unchanged() -> None:
+    x = torch.zeros(2, 3)
+    assert as_tensor(nn.Identity()(x)) is x
+
+
+def test_as_tensor_rejects_a_tuple_output() -> None:
+    pool = nn.MaxPool2d(2, return_indices=True)  # returns (output, indices)
+    with pytest.raises(TypeError, match="got tuple"):
+        _ = as_tensor(pool(torch.zeros(1, 1, 4, 4)))

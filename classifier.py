@@ -1,5 +1,5 @@
 from itertools import chain
-from typing import Literal, cast
+from typing import Literal
 from pathlib import Path
 import json
 
@@ -9,6 +9,7 @@ from torch.utils.data import DataLoader  # Misc things
 
 from data import Sample, get_test_loader, get_train_val_loaders, unpack_batch
 from utils import (
+    as_tensor,
     built,
     eval_mode,
     nn_dataclass,
@@ -23,7 +24,7 @@ class Classifier(nn.Module):
     # Boilerplate to ensure that forward pass calls are typed appropriately
     # May need to uncomment, but keep hidden for now to make the lesson stick
     def __call__(self, x: Tensor) -> Tensor:
-        return cast(Tensor, super().__call__(x))
+        return as_tensor(super().__call__(x))
 
     # `features` computes the ϕ(x) we'll need for FID
     features: nn.Module = built(
@@ -48,12 +49,12 @@ class Classifier(nn.Module):
         was_training = self.features.training
         self.features.eval()  # Ensures that dropout is identity, yielding determinism
         try:
-            return cast(Tensor, self.features(x))
+            return as_tensor(self.features(x))
         finally:
             self.features.train(was_training)
 
     def forward(self, x: Tensor) -> Tensor:
-        return cast(Tensor, self.head(self.features(x)))
+        return as_tensor(self.head(self.features(x)))
 
 
 ######################## Here we try to train manually #########################
