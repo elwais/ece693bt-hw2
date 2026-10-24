@@ -14,6 +14,7 @@ from utils import (
     nn_dataclass,
     seed_everything,
     save_params,
+    get_preferred_device,
 )
 
 
@@ -25,7 +26,7 @@ class Classifier(nn.Module):
         return cast(Tensor, super().__call__(x))
 
     # `features` computes the ϕ(x) we'll need for FID
-    features: nn.Sequential = built(
+    features: nn.Module = built(
         lambda: nn.Sequential(
             nn.Conv2d(1, 32, kernel_size=3),
             nn.ReLU(),
@@ -40,9 +41,7 @@ class Classifier(nn.Module):
     )
 
     # This takes care of the rest
-    head: nn.Sequential = built(
-        lambda: nn.Sequential(nn.Dropout(0.5), nn.Linear(128, 10))
-    )
+    head: nn.Module = built(lambda: nn.Sequential(nn.Dropout(0.5), nn.Linear(128, 10)))
 
     @torch.inference_mode()  # Drops autograd computations
     def phi(self, x: Tensor) -> Tensor:
@@ -60,20 +59,13 @@ class Classifier(nn.Module):
 ######################## Here we try to train manually #########################
 
 if __name__ == "__main__":
-    if torch.cuda.is_available():
-        device = "cuda"
-    elif torch.backends.mps.is_available():
-        device = "mps"
-    else:
-        device = "cpu"
-
-    # Seed things
+    DEVICE = get_preferred_device()
     seed_everything(0)
 
     type SplitLabel = Literal["train", "val", "test"]
 
     # Make our model
-    with torch.device(device):
+    with torch.device(DEVICE):
         model = Classifier()
 
     # Prepare loaders, which handle datasets but also generation and the like
@@ -90,7 +82,7 @@ if __name__ == "__main__":
 
     def loader_iterate(loader: DataLoader[Sample]) -> "map[tuple[Tensor, Tensor]]":
         return map(
-            lambda p: (p[0].to(device), p[1].to(device)), map(unpack_batch, loader)
+            lambda p: (p[0].to(DEVICE), p[1].to(DEVICE)), map(unpack_batch, loader)
         )
 
     def evaluate(model: Classifier, loader: DataLoader[Sample]) -> tuple[float, float]:
