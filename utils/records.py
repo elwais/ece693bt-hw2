@@ -10,6 +10,8 @@ from typing import Any, Literal, Self, cast
 
 import torch
 
+from .params import save_atomic
+
 type SplitLabel = Literal["train", "val", "test"]
 
 
@@ -47,7 +49,7 @@ class Log:
     """Base for flat histories. Saved as a plain dict of lists, matching the spec."""
 
     def save(self, path: Path) -> None:
-        torch.save(asdict(self), path)
+        save_atomic(asdict(self), path)
 
     @classmethod
     def load(cls, path: Path) -> Self:
