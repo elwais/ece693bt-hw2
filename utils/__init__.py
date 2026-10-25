@@ -6,6 +6,7 @@ from .eval_mode import eval_mode
 from .params import load_params, save_params
 from .get_device import get_preferred_device
 from .as_tensor import as_tensor
+from .records import GANLog, Log, Metrics, SplitLabel, Splits, StepLog, VAELog, WGANLog
 
 __all__ = [
     "nn_dataclass",
@@ -16,4 +17,12 @@ __all__ = [
     "load_params",
     "get_preferred_device",
     "as_tensor",
+    "GANLog",
+    "Log",
+    "Metrics",
+    "SplitLabel",
+    "Splits",
+    "StepLog",
+    "VAELog",
+    "WGANLog",
 ]
