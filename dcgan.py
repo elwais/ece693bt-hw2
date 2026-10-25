@@ -250,7 +250,9 @@ if __name__ == "__main__":
                     f"loss_G {loss_g:.4f}  D_x {d_x:.3f}  D_G_z {d_gz:.3f}"
                 )
             if epoch == 1 and step % 100 == 0:
-                save_samples(G, fixed_z, run / "samples" / f"epoch_001_step_{step:04d}.png")
+                save_samples(
+                    G, fixed_z, run / "samples" / f"epoch_001_step_{step:04d}.png"
+                )
             step += 1
 
         save_samples(G, fixed_z, run / "samples" / f"epoch_{epoch:03d}.png")
