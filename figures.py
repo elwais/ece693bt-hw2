@@ -8,10 +8,23 @@
 
     python figures.py grids RUN_A RUN_B [...] -o OUT.png
         -> the final sample grid of each run, side by side
+
+    python figures.py progress RUN [-o OUT.png]
+        -> the fixed-z grid at several points in training (default RUN/figures/progress.png)
+
+    python figures.py fid RUN_A RUN_B [...] -o OUT.png
+        -> val-5k FID vs epoch for each run (from RUN/fid.json), with the real-data
+           floor from outputs/diagnostics.json when present
+
+    python figures.py export RUN
+        -> RUN/logs/losses.json: losses.pth as plain JSON (for plotting in Typst)
 """
 
 import argparse
+import json
+from dataclasses import asdict
 from pathlib import Path
+from typing import cast
 
 import matplotlib
 
@@ -76,13 +89,75 @@ def plot_grids(runs: list[Path], out: Path) -> Path:
     return save(fig, out)
 
 
+PROGRESS_STEPS = ("epoch_001_step_0000", "epoch_001_step_0100", "epoch_001_step_0200", "epoch_001")
+PROGRESS_EPOCHS = (5, 10, 25, 50, 100)
+DIAGNOSTICS = Path("outputs/diagnostics.json")
+
+
+def progress_grids(run: Path) -> list[Path]:
+    """Early step grids, then selected epochs that exist, then the final epoch."""
+    samples = run / "samples"
+    picks = [samples / f"{name}.png" for name in PROGRESS_STEPS]
+    picks += [samples / f"epoch_{e:03d}.png" for e in PROGRESS_EPOCHS]
+    last = final_sample(run)
+    found = [p for p in picks if p.exists()]
+    return found if last in found else [*found, last]
+
+
+def plot_progress(run: Path, out: Path) -> Path:
+    grids = progress_grids(run)
+    fig = Figure(figsize=(2.6 * len(grids), 3.0))
+    for i, grid in enumerate(grids, start=1):
+        ax: Axes = fig.add_subplot(1, len(grids), i)
+        _ = ax.imshow(mpimg.imread(grid))  # pyright: ignore[reportUnknownMemberType]
+        _ = ax.set_title(grid.stem.replace("epoch_", "ep ").replace("_step_", " step "), fontsize=9)
+        _ = ax.axis("off")
+    fig.suptitle(f"{run.name}: the same 64 z through training", fontsize=10)
+    fig.tight_layout()
+    return save(fig, out)
+
+
+def val_fid_curve(run: Path) -> tuple[list[int], list[float]]:
+    """(epoch, FID) for val-5k records of epoch_*.pt checkpoints, sorted by epoch."""
+    records = cast("list[dict[str, object]]", json.loads((run / "fid.json").read_text()))
+    points = sorted(
+        (cast("int", r["epoch"]), cast("float", r["fid"]))
+        for r in records
+        if r["split"] == "val" and str(r["checkpoint"]).startswith("epoch_")
+    )
+    return [e for e, _ in points], [f for _, f in points]
+
+
+def plot_fid(runs: list[Path], out: Path) -> Path:
+    fig = Figure(figsize=(7, 4.2))
+    ax: Axes = fig.add_subplot(1, 1, 1)
+    for run in runs:
+        epochs, fids = val_fid_curve(run)
+        _ = ax.plot(epochs, fids, marker="o", markersize=3, linewidth=1, label=run.name)
+    if DIAGNOSTICS.exists():
+        floor = cast("dict[str, dict[str, float]]", json.loads(DIAGNOSTICS.read_text()))["fid_floor"]
+        _ = ax.axhline(floor["train5k_vs_val5k"], color="gray", linestyle=":", label="real-data floor (5k)")
+    _ = ax.set_yscale("log")
+    _ = ax.set_xlabel("epoch")
+    _ = ax.set_ylabel("FID, val 5k (log scale)")
+    _ = ax.legend(fontsize=8)
+    fig.tight_layout()
+    return save(fig, out)
+
+
+def export_losses(run: Path) -> Path:
+    out = run / "logs" / "losses.json"
+    _ = out.write_text(json.dumps(asdict(GANLog.load(run / "logs" / "losses.pth"))))
+    return out
+
+
 class Args(argparse.Namespace):
     """Typed arguments. Each subcommand sets the fields it uses."""
 
     cmd: str
     run: Path
     runs: list[Path]
-    out: Path
+    out: Path | None
 
 
 def parse_args() -> Args:
@@ -93,6 +168,14 @@ def parse_args() -> Args:
     p_grid = sub.add_parser("grids")
     _ = p_grid.add_argument("runs", type=Path, nargs="+")
     _ = p_grid.add_argument("-o", "--out", type=Path, required=True)
+    p_prog = sub.add_parser("progress")
+    _ = p_prog.add_argument("run", type=Path)
+    _ = p_prog.add_argument("-o", "--out", type=Path, default=None)
+    p_fid = sub.add_parser("fid")
+    _ = p_fid.add_argument("runs", type=Path, nargs="+")
+    _ = p_fid.add_argument("-o", "--out", type=Path, required=True)
+    p_exp = sub.add_parser("export")
+    _ = p_exp.add_argument("run", type=Path)
     return parser.parse_args(namespace=Args())
 
 
@@ -100,5 +183,13 @@ if __name__ == "__main__":
     args = parse_args()
     if args.cmd == "losses":
         print(plot_losses(args.run))
-    else:
+    elif args.cmd == "grids":
+        assert args.out is not None
         print(plot_grids(args.runs, args.out))
+    elif args.cmd == "progress":
+        print(plot_progress(args.run, args.out or args.run / "figures" / "progress.png"))
+    elif args.cmd == "fid":
+        assert args.out is not None
+        print(plot_fid(args.runs, args.out))
+    else:
+        print(export_losses(args.run))
