@@ -1,9 +1,10 @@
 """Frechet Inception Distance on the classifier's features phi(x) (Part 1, item 5).
 
-    python fid.py RUN_DIR [--checkpoint final.pt] [--split val|test] [--n 10000]
+    python fid.py RUN_DIR [--checkpoint final.pt|all] [--split val|test] [--n 10000]
 
 Loads the generator from RUN_DIR/checkpoints/CHECKPOINT and appends one record to
-RUN_DIR/fid.json. Real features come from the validation set (5k, for choosing
+RUN_DIR/fid.json. `--checkpoint all` evaluates every epoch_*.pt; records already in
+fid.json (same checkpoint, split, n, seed) are skipped, so re-running is cheap. Real features come from the validation set (5k, for choosing
 between runs) or the test set (10k, for the reported number).
 
 Math (B5): for real features with mean mu_r and covariance S_r, and generated
@@ -136,40 +137,66 @@ class Args(argparse.Namespace):
 def parse_args() -> Args:
     parser = argparse.ArgumentParser(description="FID of a DCGAN checkpoint on classifier features.")
     _ = parser.add_argument("run_dir", type=Path)
-    _ = parser.add_argument("--checkpoint", default=Args.checkpoint)
+    _ = parser.add_argument("--checkpoint", default=Args.checkpoint, help="a file in checkpoints/, or all")
     _ = parser.add_argument("--split", choices=["val", "test"], default=Args.split)
     _ = parser.add_argument("--n", type=int, default=Args.n)
     _ = parser.add_argument("--seed", type=int, default=Args.seed)
     return parser.parse_args(namespace=Args())
 
 
+def checkpoint_names(run_dir: Path, spec: str) -> list[str]:
+    """`all` means every 5-epoch checkpoint (epoch_*.pt) in order; otherwise the one name."""
+    if spec != "all":
+        return [spec]
+    names = sorted(p.name for p in (run_dir / "checkpoints").glob("epoch_*.pt"))
+    if not names:
+        raise SystemExit(f"{run_dir}: no epoch_*.pt checkpoints")
+    return names
+
+
+def already_done(results: list[dict[str, object]], record: dict[str, object]) -> bool:
+    """A record with the same checkpoint, split, n and seed is already in fid.json."""
+    keys = ("checkpoint", "split", "n_generated", "seed")
+    return any(all(r.get(k) == record[k] for k in keys) for r in results)
+
+
 if __name__ == "__main__":
     args = parse_args()
     device = get_preferred_device()
 
-    ckpt_path = args.run_dir / "checkpoints" / args.checkpoint
-    loaders = gan_loaders()
-    real_loader = loaders.val if args.split == "val" else loaders.test
-
-    clf = load_classifier(device)
-    G, epoch = load_generator(ckpt_path, device)
-
-    real = real_features(clf, real_loader, device)
-    mu_r, cov_r = mean_cov(real)
-    mu_g, cov_g = mean_cov(generated_features(G, clf, args.n, args.seed, device))
-    fid = fid_from_stats(mu_r, cov_r, mu_g, cov_g)
-
-    record: dict[str, object] = {
-        "checkpoint": args.checkpoint,
-        "epoch": epoch,
-        "split": args.split,
-        "n_generated": args.n,
-        "n_real": int(real.shape[0]),
-        "seed": args.seed,
-        "fid": fid,
-    }
     out = args.run_dir / "fid.json"
     results = cast("list[dict[str, object]]", json.loads(out.read_text())) if out.exists() else []
-    results.append(record)
-    _ = out.write_text(json.dumps(results, indent=2))
-    print(f"{args.run_dir.name}  {args.checkpoint}  epoch {epoch}  {args.split}  n={args.n}  FID {fid:.3f}")
+    todo = [
+        name
+        for name in checkpoint_names(args.run_dir, args.checkpoint)
+        if not already_done(
+            results, {"checkpoint": name, "split": args.split, "n_generated": args.n, "seed": args.seed}
+        )
+    ]
+    if not todo:
+        print(f"{args.run_dir.name}: nothing to do ({args.checkpoint}, {args.split}, n={args.n})")
+        raise SystemExit(0)
+
+    loaders = gan_loaders()
+    real_loader = loaders.val if args.split == "val" else loaders.test
+    clf = load_classifier(device)
+    real = real_features(clf, real_loader, device)  # once, shared by every checkpoint
+    mu_r, cov_r = mean_cov(real)
+
+    for name in todo:
+        G, epoch = load_generator(args.run_dir / "checkpoints" / name, device)
+        mu_g, cov_g = mean_cov(generated_features(G, clf, args.n, args.seed, device))
+        fid = fid_from_stats(mu_r, cov_r, mu_g, cov_g)
+        results.append(
+            {
+                "checkpoint": name,
+                "epoch": epoch,
+                "split": args.split,
+                "n_generated": args.n,
+                "n_real": int(real.shape[0]),
+                "seed": args.seed,
+                "fid": fid,
+            }
+        )
+        _ = out.write_text(json.dumps(results, indent=2))  # after each checkpoint: partial runs keep results
+        print(f"{args.run_dir.name}  {name}  epoch {epoch}  {args.split}  n={args.n}  FID {fid:.3f}")
