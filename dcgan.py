@@ -1,15 +1,22 @@
 import argparse
+import json
+from datetime import datetime
+from pathlib import Path
 from typing import TypeVar
 
 from torch import Tensor, nn
 import torch
+from torchvision.utils import save_image  # pyright: ignore[reportUnknownVariableType]  # torchvision has no stubs
 
 from data import batches, gan_loaders
 from utils import (
+    GANLog,
     as_tensor,
     built,
+    eval_mode,
     get_preferred_device,
     nn_dataclass,
+    save_atomic,
     seed_everything,
 )
 
@@ -135,6 +142,7 @@ class Args(argparse.Namespace):
     lr_d: float = 2e-4
     epochs: int = 25
     seed: int = 0
+    name: str | None = None
 
 
 def parse_args() -> Args:
@@ -145,7 +153,40 @@ def parse_args() -> Args:
     _ = parser.add_argument("--lr-d", type=float, default=Args.lr_d)
     _ = parser.add_argument("--epochs", type=int, default=Args.epochs)
     _ = parser.add_argument("--seed", type=int, default=Args.seed)
+    _ = parser.add_argument("--name", type=str, default=Args.name)
     return parser.parse_args(namespace=Args())
+
+
+def config(args: Args) -> dict[str, float | int | str | None]:
+    """The run's settings as plain values, for args.json and each checkpoint.
+
+    vars(args) would miss the defaults: argparse skips any attribute that the
+    namespace class already defines, so defaults stay as class attributes.
+    """
+    return {
+        "lr_g": args.lr_g,
+        "lr_d": args.lr_d,
+        "epochs": args.epochs,
+        "seed": args.seed,
+        "name": args.name,
+    }
+
+
+def new_run_dir(args: Args) -> Path:
+    """outputs/dcgan/<YYYYmmdd-HHMMSS>[_<name>]/ with its subfolders."""
+    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    run = Path("outputs") / "dcgan" / (f"{stamp}_{args.name}" if args.name else stamp)
+    for sub in ("checkpoints", "samples", "logs"):
+        (run / sub).mkdir(parents=True, exist_ok=False)
+    return run
+
+
+def save_samples(G: Generator, z: Tensor, path: Path) -> None:
+    """Save an 8x8 grid of G(z). Eval mode, so BatchNorm uses running stats and
+    sampling does not change them."""
+    with eval_mode(G):
+        images = G(z)
+    save_image(images, path, nrow=8, normalize=True, value_range=(-1, 1))
 
 
 if __name__ == "__main__":
@@ -153,13 +194,19 @@ if __name__ == "__main__":
     DEVICE = get_preferred_device()
     seed_everything(args.seed)
 
+    run = new_run_dir(args)
+    run_config = config(args)
+    _ = (run / "args.json").write_text(json.dumps(run_config, indent=2))
+
     loaders = gan_loaders()  # train for training; val and test later, for FID
+    fixed_z = torch.randn(64, 100, 1, 1, device=DEVICE)  # drawn right after seeding
 
     with torch.device(DEVICE):
         G, D = Generator(), Discriminator()
     opt_G = torch.optim.Adam(G.parameters(), lr=args.lr_g, betas=(0.5, 0.999))
     opt_D = torch.optim.Adam(D.parameters(), lr=args.lr_d, betas=(0.5, 0.999))
 
+    log = GANLog()
     step = 0  # global: counts batches across epochs, for 50-step logging
     for epoch in range(1, args.epochs + 1):
         G.train()
@@ -184,5 +231,42 @@ if __name__ == "__main__":
             lG.backward()  # pyright: ignore[reportUnknownMemberType]
             opt_G.step()  # pyright: ignore[reportUnknownMemberType]
 
+            # Logged values are pre-update: D_x and D_G_z come from the D step above.
+            # .item() only runs on log steps, so it does not sync the device every batch.
+            if step % 50 == 0:
+                d_x = torch.sigmoid(logits_real).mean().item()
+                d_gz = torch.sigmoid(logits_fake).mean().item()
+                loss_d, loss_g = lD.item(), lG.item()
+                log.push(
+                    step=step,
+                    epoch=epoch,
+                    loss_G=loss_g,
+                    loss_D=loss_d,
+                    D_x=d_x,
+                    D_G_z=d_gz,
+                )
+                print(
+                    f"epoch {epoch:3d}  step {step:6d}  loss_D {loss_d:.4f}  "
+                    f"loss_G {loss_g:.4f}  D_x {d_x:.3f}  D_G_z {d_gz:.3f}"
+                )
+            if epoch == 1 and step % 100 == 0:
+                save_samples(G, fixed_z, run / "samples" / f"epoch_001_step_{step:04d}.png")
             step += 1
-            # Logging every 50 steps (and epoch-1 samples every ~100) goes here.
+
+        save_samples(G, fixed_z, run / "samples" / f"epoch_{epoch:03d}.png")
+        log.save(run / "logs" / "losses.pth")
+
+        ckpt: dict[str, object] = {
+            "G": G.state_dict(),
+            "D": D.state_dict(),
+            "opt_G": opt_G.state_dict(),
+            "opt_D": opt_D.state_dict(),
+            "epoch": epoch,
+            "config": run_config,
+        }
+        save_atomic(ckpt, run / "checkpoints" / "last.pt")
+        if epoch % 5 == 0:
+            save_atomic(ckpt, run / "checkpoints" / f"epoch_{epoch:03d}.pt")
+        if epoch == args.epochs:
+            save_atomic(ckpt, run / "checkpoints" / "final.pt")
+            print(f"done: {run}")
