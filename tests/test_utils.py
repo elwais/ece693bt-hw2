@@ -1,3 +1,4 @@
+from collections.abc import Iterator
 from dataclasses import field
 from pathlib import Path
 
@@ -5,7 +6,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from utils import as_tensor, built, load_params, nn_dataclass, save_params
+from utils import as_tensor, built, load_params, nn_dataclass, save_atomic, save_params
 
 
 @nn_dataclass
@@ -160,3 +161,21 @@ def test_as_tensor_rejects_a_tuple_output() -> None:
     pool = nn.MaxPool2d(2, return_indices=True)  # returns (output, indices)
     with pytest.raises(TypeError, match="got tuple"):
         _ = as_tensor(pool(torch.zeros(1, 1, 4, 4)))
+
+
+def test_save_atomic_creates_parent_dirs_and_round_trips(tmp_path: Path) -> None:
+    path = tmp_path / "nested" / "dir" / "obj.pt"
+    save_atomic({"epoch": 3}, path)
+    assert torch.load(path, weights_only=True) == {"epoch": 3}
+    assert not path.with_suffix(".pt.tmp").exists()
+
+
+def test_save_atomic_keeps_old_file_if_write_fails(tmp_path: Path) -> None:
+    path = tmp_path / "last.pt"
+    save_atomic({"epoch": 1}, path)
+    def unpicklable() -> Iterator[int]:
+        yield 1
+
+    with pytest.raises(TypeError):
+        save_atomic({"bad": unpicklable()}, path)  # generators cannot be pickled
+    assert torch.load(path, weights_only=True) == {"epoch": 1}

@@ -7,14 +7,21 @@ from torch import Tensor, nn
 M = TypeVar("M", bound=nn.Module)
 
 
+def save_atomic(obj: object, path: Path) -> None:
+    """torch.save(obj, path) without ever leaving a half-written file at `path`.
+
+    Writes to a temporary file, then renames it into place. If the process dies
+    mid-write, any existing file at `path` is left intact.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    torch.save(obj, tmp)
+    _ = tmp.replace(path)
+
+
 def save_params(model: nn.Module, path: Path) -> None:
     """Write the model's parameters and buffers (its state_dict) to `path`."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Write to a temporary file, then rename it into place. If the process dies
-    # mid-write, any existing file at `path` is left intact.
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    torch.save(model.state_dict(), tmp)
-    _ = tmp.replace(path)
+    save_atomic(model.state_dict(), path)
 
 
 def load_params(model: M, path: Path) -> M:
