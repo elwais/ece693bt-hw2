@@ -1,1 +1,13 @@
 run_dir,family,lr,lr_D,beta,epochs,seed,checkpoint,fid_val5k,fid_test10k,notes
+outputs/dcgan/20261025-032558_baseline,dcgan,2e-4,2e-4,,25,0,final.pt,160.1,155.2,"B8 grid; n=10000 generated; test row uses epoch_025.pt (identical to final.pt)"
+outputs/dcgan/20261025-032811_lr1e-4,dcgan,1e-4,1e-4,,25,0,final.pt,226.1,219.0,"B8 grid; n=10000 generated; test row uses epoch_025.pt"
+outputs/dcgan/20261025-032816_lr5e-4,dcgan,5e-4,5e-4,,25,0,final.pt,109.1,106.4,"B8 grid; n=10000 generated; test row uses epoch_025.pt"
+outputs/dcgan/20261025-032602_d20x,dcgan,2e-4,4e-3,,25,0,final.pt,128.2,125.8,"ablation 20x lr_D (PDF 1.4); not in B8 grid; n=10000; test row uses epoch_025.pt"
+outputs/dcgan/20261025-033339_long,dcgan,5e-4,5e-4,,50,0,final.pt,79.2,78.3,"B8 choice = lr5e-4 (best val5k among baseline/1e-4/5e-4); n=10000; val row is epoch_050.pt (= final.pt)"
+outputs/dcgan/20261025-045656_d20x_long,dcgan,2e-4,4e-3,,50,0,final.pt,99.3,98.2,"20x lr_D, 50 ep (advisor item d20x_long); n=10000; best val = final (epoch_050); test row final.pt"
+outputs/dcgan/20261025-045659_long100,dcgan,5e-4,5e-4,,100,0,epoch_045.pt,84.8,82.6,"100 ep; reported ckpt = best val epoch_045 (84.8); test row epoch_045.pt; final.pt (ep100) val 88.8, test 87.3; n=10000"
+outputs/dcgan/20261025-045704_d5x,dcgan,2e-4,1e-3,,25,0,final.pt,142.5,139.0,"5x lr_D dose-response; best val = final (epoch_025); n=10000"
+outputs/dcgan/20261025-045709_g5d2e-3,dcgan,5e-4,2e-3,,50,0,final.pt,119.0,117.3,"lr_G 5e-4 + 4x lr_D; best val = final (epoch_050); n=10000"
+outputs/dcgan/20261025-050039_ttur,dcgan,1e-4,4e-4,,25,0,final.pt,207.9,202.8,"two-timescale 1e-4/4e-4; best val = final (epoch_025); n=10000"
+outputs/dcgan/20261025-050412_baseline_s1,dcgan,2e-4,2e-4,,25,1,final.pt,162.3,159.2,"seed-noise pair of baseline; best val = final (epoch_025); n=10000"
+outputs/dcgan/20261025-050416_d20x_s1,dcgan,2e-4,4e-3,,25,1,final.pt,138.1,135.0,"seed-noise pair of d20x; best val = final (epoch_025); n=10000"
