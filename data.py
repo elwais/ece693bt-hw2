@@ -16,14 +16,17 @@ Unknown to basedpyright. The annotations in this module are the typed boundary:
 they state what torchvision is expected to return, and pyright checks the rest.
 """
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import cast
 
 import torch
 from PIL import Image
+from torch import Tensor
 from torch.utils.data import DataLoader, Dataset, Subset
 from torchvision import datasets, transforms
+
+from utils.records import Splits
 
 # This file sits at the repo root, so the root is parents[0].
 DATA_ROOT = Path(__file__).resolve().parents[0] / "data"
@@ -139,6 +142,25 @@ def get_test_loader(
         num_workers=num_workers,
         pin_memory=torch.cuda.is_available(),
     )
+
+
+def gan_loaders() -> Splits[DataLoader[Sample]]:
+    """[-1, 1] scaling: DCGAN and WGAN training, and the FID real set (test)."""
+    train, val = get_train_val_loaders("gan")
+    return Splits(train=train, val=val, test=get_test_loader("gan"))
+
+
+def vae_loaders() -> Splits[DataLoader[Sample]]:
+    """[0, 1] scaling: VAE training. Its test split is for final VAE metrics only;
+    FID real images always come from gan_loaders().test."""
+    train, val = get_train_val_loaders("vae")
+    return Splits(train=train, val=val, test=get_test_loader("vae"))
+
+
+def batches(loader: DataLoader[Sample]) -> Iterator[tuple[Tensor, Tensor]]:
+    """Typed (images, labels) batches. DataLoader iteration is typed Any upstream."""
+    for batch in cast(Iterable[object], loader):
+        yield unpack_batch(batch)
 
 
 if __name__ == "__main__":
