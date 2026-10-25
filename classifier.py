@@ -1,5 +1,5 @@
-from itertools import chain
-from typing import Literal
+from collections.abc import Iterator
+from dataclasses import asdict
 from pathlib import Path
 import json
 
@@ -7,8 +7,10 @@ import torch
 from torch import Tensor, nn  # Super frequent and important stuff
 from torch.utils.data import DataLoader  # Misc things
 
-from data import Sample, get_test_loader, get_train_val_loaders, unpack_batch
+from data import Sample, batches, gan_loaders
 from utils import (
+    Metrics,
+    Splits,
     as_tensor,
     built,
     eval_mode,
@@ -23,7 +25,7 @@ from utils import (
 class Classifier(nn.Module):
     # Boilerplate to ensure that forward pass calls are typed appropriately
     # May need to uncomment, but keep hidden for now to make the lesson stick
-    def __call__(self, x: Tensor) -> Tensor:
+    def __call__(self, x: Tensor):
         return as_tensor(super().__call__(x))
 
     # `features` computes the ϕ(x) we'll need for FID
@@ -44,16 +46,11 @@ class Classifier(nn.Module):
     # This takes care of the rest
     head: nn.Module = built(lambda: nn.Sequential(nn.Dropout(0.5), nn.Linear(128, 10)))
 
-    @torch.inference_mode()  # Drops autograd computations
-    def phi(self, x: Tensor) -> Tensor:
-        was_training = self.features.training
-        self.features.eval()  # Ensures that dropout is identity, yielding determinism
-        try:
+    def phi(self, x: Tensor):
+        with eval_mode(self.features):
             return as_tensor(self.features(x))
-        finally:
-            self.features.train(was_training)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: Tensor):
         return as_tensor(self.head(self.features(x)))
 
 
@@ -63,28 +60,19 @@ if __name__ == "__main__":
     DEVICE = get_preferred_device()
     seed_everything(0)
 
-    type SplitLabel = Literal["train", "val", "test"]
-
     # Make our model
     with torch.device(DEVICE):
         model = Classifier()
 
-    # Prepare loaders, which handle datasets but also generation and the like
-    loaders: dict[SplitLabel, DataLoader[Sample]] = {
-        name: loader
-        for name, loader in zip(
-            ("train", "val", "test"),
-            chain(get_train_val_loaders("gan"), (get_test_loader("gan"),)),
-        )
-    }
+    # Loaders for train, val and test, all in the [-1, 1] scaling
+    loaders = gan_loaders()
 
     # Our optimizer; by default uses lr=1e-3, so no need to make it explicit
     opt = torch.optim.Adam(model.parameters())
 
-    def loader_iterate(loader: DataLoader[Sample]) -> "map[tuple[Tensor, Tensor]]":
-        return map(
-            lambda p: (p[0].to(DEVICE), p[1].to(DEVICE)), map(unpack_batch, loader)
-        )
+    def loader_iterate(loader: DataLoader[Sample]) -> Iterator[tuple[Tensor, Tensor]]:
+        for sample, label in batches(loader):
+            yield sample.to(DEVICE), label.to(DEVICE)
 
     def evaluate(model: Classifier, loader: DataLoader[Sample]) -> tuple[float, float]:
         """Mean cross-entropy and accuracy"""
@@ -100,11 +88,7 @@ if __name__ == "__main__":
         return loss_sum / n, correct / n
 
     # To be populated in eval loops
-    history: dict[SplitLabel, dict[Literal["acc", "loss"], list[int | float]]] = {
-        "train": {"acc": [], "loss": []},
-        "val": {"acc": [], "loss": []},
-        "test": {"acc": [], "loss": []},
-    }
+    history: Splits[Metrics] = Splits(train=Metrics(), val=Metrics(), test=Metrics())
 
     min_epoch_loss = float("inf")
 
@@ -122,13 +106,13 @@ if __name__ == "__main__":
         # Evaluating over all splits and saving results
         for split, loader in loaders.items():
             loss, acc = evaluate(model, loader)
-            history[split]["loss"].append(loss)
-            history[split]["acc"].append(acc)
+            history[split].loss.append(loss)
+            history[split].acc.append(acc)
 
-        current_epoch_loss = history["val"]["loss"][-1]
+        current_epoch_loss = history.val.loss[-1]
         if current_epoch_loss < min_epoch_loss:
             save_params(model, Path("outputs/classifier.pt"))
             min_epoch_loss = current_epoch_loss
 
         with open("outputs/classifier_history.json", "w") as f:
-            json.dump(history, f)
+            json.dump(asdict(history), f)
