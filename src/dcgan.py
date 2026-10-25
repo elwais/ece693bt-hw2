@@ -1,14 +1,14 @@
 import argparse
-import json
-from datetime import datetime
+from collections.abc import Iterator
 from pathlib import Path
-from typing import TypeVar
+from typing import TypeVar, override
 
 from torch import Tensor, nn
 import torch
 from torchvision.utils import save_image  # pyright: ignore[reportUnknownVariableType]  # torchvision has no stubs
 
-from data import batches, gan_loaders
+from data import gan_loaders
+from trainer import Batch, Stateful, Stats, Trainer, make_run_dir, optimizer_step
 from utils import (
     GANLog,
     as_tensor,
@@ -16,7 +16,6 @@ from utils import (
     eval_mode,
     get_preferred_device,
     nn_dataclass,
-    save_atomic,
     seed_everything,
 )
 
@@ -172,15 +171,6 @@ def config(args: Args) -> dict[str, float | int | str | None]:
     }
 
 
-def new_run_dir(args: Args) -> Path:
-    """outputs/dcgan/<YYYYmmdd-HHMMSS>[_<name>]/ with its subfolders."""
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    run = Path("outputs") / "dcgan" / (f"{stamp}_{args.name}" if args.name else stamp)
-    for sub in ("checkpoints", "samples", "logs"):
-        (run / sub).mkdir(parents=True, exist_ok=False)
-    return run
-
-
 def save_samples(G: Generator, z: Tensor, path: Path) -> None:
     """Save an 8x8 grid of G(z). Eval mode, so BatchNorm uses running stats and
     sampling does not change them."""
@@ -189,86 +179,116 @@ def save_samples(G: Generator, z: Tensor, path: Path) -> None:
     save_image(images, path, nrow=8, normalize=True, value_range=(-1, 1))
 
 
-if __name__ == "__main__":
-    args = parse_args()
-    DEVICE = get_preferred_device()
-    seed_everything(args.seed)
+Z_DIM = 100
+BETAS = (0.5, 0.999)
+LOG_EVERY = 50  # steps between rows of losses.pth
+SAMPLE_EVERY = 100  # steps between sample grids, in epoch 1 only
+CKPT_EVERY = 5  # epochs between epoch_XXX.pt
 
-    run = new_run_dir(args)
-    run_config = config(args)
-    _ = (run / "args.json").write_text(json.dumps(run_config, indent=2))
 
-    loaders = gan_loaders()  # train for training; val and test later, for FID
-    fixed_z = torch.randn(64, 100, 1, 1, device=DEVICE)  # drawn right after seeding
+class DCGANTrainer(Trainer):
+    """Setup Task 1: per batch, one D step, then one G step on the same fake batch."""
 
-    with torch.device(DEVICE):
-        G, D = Generator(), Discriminator()
-    opt_G = torch.optim.Adam(G.parameters(), lr=args.lr_g, betas=(0.5, 0.999))
-    opt_D = torch.optim.Adam(D.parameters(), lr=args.lr_d, betas=(0.5, 0.999))
+    net_G: Generator
+    net_D: Discriminator
+    opt_G: torch.optim.Optimizer
+    opt_D: torch.optim.Optimizer
+    z_fixed: Tensor  # the 64 latent vectors of every sample grid
+    config: dict[str, float | int | str | None]
+    run_dir: Path
+    log: GANLog
 
-    log = GANLog()
-    step = 0  # global: counts batches across epochs, for 50-step logging
-    for epoch in range(1, args.epochs + 1):
-        G.train()
-        D.train()
+    def __init__(self, args: Args) -> None:
+        device = get_preferred_device()
+        seed_everything(args.seed)
+        super().__init__(epochs=args.epochs, device=device, log_every=LOG_EVERY)
 
-        for x, _ in batches(loaders.train):  # labels unused
-            x = x.to(DEVICE)
-            z = torch.randn(x.shape[0], 100, 1, 1, device=DEVICE)
-            x_tilde = G(z)
+        self.config = config(args)
+        self.run_dir = make_run_dir("dcgan", args.name, self.config)
 
-            # detach() s.t. the loss does not reach G.
-            opt_D.zero_grad()
-            logits_real, logits_fake = D(x), D(x_tilde.detach())
-            lD = loss_D(logits_real, logits_fake)
-            lD.backward()  # pyright: ignore[reportUnknownMemberType]
-            opt_D.step()  # pyright: ignore[reportUnknownMemberType]
+        # train for training; val and test are used later, for FID
+        self.train_loader = gan_loaders().train
+        self.z_fixed = torch.randn(64, Z_DIM, 1, 1, device=self.device)  # drawn right after seeding
 
-            # G step: the same fakes, judged again by the updated D.
-            opt_G.zero_grad()
-            logits_gen = D(x_tilde)
-            lG = loss_G(logits_gen)
-            lG.backward()  # pyright: ignore[reportUnknownMemberType]
-            opt_G.step()  # pyright: ignore[reportUnknownMemberType]
+        with torch.device(self.device):
+            self.net_G = Generator()
+            self.net_D = Discriminator()
+        self.opt_G = torch.optim.Adam(self.net_G.parameters(), lr=args.lr_g, betas=BETAS)
+        self.opt_D = torch.optim.Adam(self.net_D.parameters(), lr=args.lr_d, betas=BETAS)
 
-            # Logged values are pre-update: D_x and D_G_z come from the D step above.
-            # .item() only runs on log steps, so it does not sync the device every batch.
-            if step % 50 == 0:
-                d_x = torch.sigmoid(logits_real).mean().item()
-                d_gz = torch.sigmoid(logits_fake).mean().item()
-                loss_d, loss_g = lD.item(), lG.item()
-                log.push(
-                    step=step,
-                    epoch=epoch,
-                    loss_G=loss_g,
-                    loss_D=loss_d,
-                    D_x=d_x,
-                    D_G_z=d_gz,
-                )
-                print(
-                    f"epoch {epoch:3d}  step {step:6d}  loss_D {loss_d:.4f}  "
-                    f"loss_G {loss_g:.4f}  D_x {d_x:.3f}  D_G_z {d_gz:.3f}"
-                )
-            if epoch == 1 and step % 100 == 0:
-                save_samples(
-                    G, fixed_z, run / "samples" / f"epoch_001_step_{step:04d}.png"
-                )
-            step += 1
+        self.log = GANLog()
 
-        save_samples(G, fixed_z, run / "samples" / f"epoch_{epoch:03d}.png")
-        log.save(run / "logs" / "losses.pth")
-
-        ckpt: dict[str, object] = {
-            "G": G.state_dict(),
-            "D": D.state_dict(),
-            "opt_G": opt_G.state_dict(),
-            "opt_D": opt_D.state_dict(),
-            "epoch": epoch,
-            "config": run_config,
+    @override
+    def state(self) -> dict[str, Stateful]:
+        return {
+            "G": self.net_G,
+            "D": self.net_D,
+            "opt_G": self.opt_G,
+            "opt_D": self.opt_D,
         }
-        save_atomic(ckpt, run / "checkpoints" / "last.pt")
-        if epoch % 5 == 0:
-            save_atomic(ckpt, run / "checkpoints" / f"epoch_{epoch:03d}.pt")
-        if epoch == args.epochs:
-            save_atomic(ckpt, run / "checkpoints" / "final.pt")
-            print(f"done: {run}")
+
+    @override
+    def checkpoint(self) -> dict[str, object]:
+        payload = super().checkpoint()
+        payload["config"] = self.config
+        return payload
+
+    @override
+    def train_step(self, stream: Iterator[Batch]) -> Stats:
+        x = next(stream)[0].to(self.device)  # labels unused
+        z = torch.randn(x.shape[0], Z_DIM, 1, 1, device=self.device)
+        x_tilde = self.net_G(z)
+
+        # detach() s.t. the loss does not reach G.
+        logits_real, logits_fake = self.net_D(x), self.net_D(x_tilde.detach())
+        lD = loss_D(logits_real, logits_fake)
+        optimizer_step(self.opt_D, lD)
+
+        # G step: the same fakes, judged again by the updated D.
+        lG = loss_G(self.net_D(x_tilde))
+        optimizer_step(self.opt_G, lG)
+
+        if self.epoch == 1 and self.step % SAMPLE_EVERY == 0:
+            save_samples(
+                self.net_G,
+                self.z_fixed,
+                self.run_dir / "samples" / f"epoch_001_step_{self.step:04d}.png",
+            )
+
+        # D_x and D_G_z come from the D step above, so they are pre-update.
+        return {
+            "loss_D": lD.detach(),
+            "loss_G": lG.detach(),
+            "D_x": torch.sigmoid(logits_real.detach()).mean(),
+            "D_G_z": torch.sigmoid(logits_fake.detach()).mean(),
+        }
+
+    @override
+    def log_step(self, stats: dict[str, float]) -> None:
+        self.log.push(
+            step=self.step,
+            epoch=self.epoch,
+            loss_G=stats["loss_G"],
+            loss_D=stats["loss_D"],
+            D_x=stats["D_x"],
+            D_G_z=stats["D_G_z"],
+        )
+        print(
+            f"epoch {self.epoch:3d}  step {self.step:6d}  "
+            f"loss_D {stats['loss_D']:.4f}  loss_G {stats['loss_G']:.4f}  "
+            f"D_x {stats['D_x']:.3f}  D_G_z {stats['D_G_z']:.3f}"
+        )
+
+    @override
+    def end_epoch(self) -> None:
+        save_samples(
+            self.net_G, self.z_fixed, self.run_dir / "samples" / f"epoch_{self.epoch:03d}.png"
+        )
+        self.log.save(self.run_dir / "logs" / "losses.pth")
+        self.save_checkpoints(self.run_dir / "checkpoints", every=CKPT_EVERY)
+
+
+if __name__ == "__main__":
+    trainer = DCGANTrainer(parse_args())
+    trainer.fit()
+    print(f"done: {trainer.run_dir}")
