@@ -10,6 +10,8 @@ Without RUN_DIRs, uses every outputs/dcgan/* run whose name does not end in "_sm
    perfect generator would score at the same sample sizes. Two pairs:
      - train 10k vs test 10k   (reference for the reported test-10k FIDs)
      - train 5k  vs val 5k     (reference for the val-5k selection FIDs)
+   Plus test first 5k vs test last 5k: MNIST's test set is two writer populations
+   (the first half drawn from NIST's cleaner training writers), so this is far from 0.
    The train subsets are a seeded random draw from the 55k training split.
 
 2. Class histogram: 10k samples from each run's final.pt, labelled by the classifier.
@@ -82,6 +84,7 @@ def fid_floor(clf: Classifier, device: str) -> dict[str, float]:
     return {
         "train10k_vs_test10k": fid_between(train_10k, test),
         "train5k_vs_val5k": fid_between(train_10k[:5000], val),
+        "test_first5k_vs_last5k": fid_between(test[:5000], test[5000:]),
     }
 
 
