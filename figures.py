@@ -1,7 +1,10 @@
 # pyright: reportUnknownMemberType=false
 # matplotlib's keyword arguments are untyped, so every plotting call would be flagged.
 # Only this rule is relaxed; all other strict checks still apply to this file.
-"""Figures for DCGAN runs (Part 1 items 1-2, and the 20x comparison).
+"""Quick-look matplotlib figures for DCGAN runs, for checking runs while they train.
+
+The report does not use these images: it reads outputs/manifest.json (see manifest.py)
+and draws its plots and sample grids in Typst. `export` is used by manifest.py.
 
     python figures.py losses RUN_DIR
         -> RUN_DIR/figures/losses.png: loss_D and loss_G, and D_x and D_G_z, vs step
