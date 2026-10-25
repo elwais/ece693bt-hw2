@@ -1,6 +1,6 @@
 # `nn_dataclass`: dataclass ergonomics for `nn.Module`
 
-This document covers `nn_dataclass`, the decorator in `utils/nn_dataclass.py`. It is in three parts:
+This document covers `nn_dataclass`, the decorator in `src/utils/nn_dataclass.py`. It is in three parts:
 
 1. **Why and how to use it.** A before/after example, then the rules.
 2. **Why plain `@dataclass` does not work** on `nn.Module`, with the failures reproduced.
@@ -349,7 +349,7 @@ Using `Signature.bind` rather than hand-written argument parsing gives Python's 
 
 ### 4.7 `custom_init`: the constructor
 
-Abridged from `utils/nn_dataclass.py`, with the lettered steps annotated:
+Abridged from `src/utils/nn_dataclass.py`, with the lettered steps annotated:
 
 ```python
 def custom_init(self: nn.Module, *args: object, **kwargs: object) -> None:
@@ -448,7 +448,7 @@ Static checking is `basedpyright` in strict mode (`typeCheckingMode = "strict"` 
 
 | Path | Role |
 |---|---|
-| `utils/nn_dataclass.py` | The decorator |
-| `utils/__init__.py` | Re-exports `nn_dataclass`, so `from utils import nn_dataclass` works |
+| `src/utils/nn_dataclass.py` | The decorator |
+| `src/utils/__init__.py` | Re-exports `nn_dataclass`, so `from utils import nn_dataclass` works |
 | `tests/test_utils.py` | Runtime tests |
 | `pyproject.toml` | `[tool.basedpyright]`, strict mode |

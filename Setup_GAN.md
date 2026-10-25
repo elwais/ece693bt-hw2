@@ -157,15 +157,16 @@ hw2/                               # repository root
 ├── .gitignore                     # venv, data, outputs, checkpoints, caches
 ├── Setup_GAN.md                   # this file
 ├── Assignment2_GANs.pdf           # the assignment (authoritative for deliverables)
-├── data.py                        # MNIST download (python data.py); [-1,1] and [0,1] scalings; fixed 55k/5k split
-├── utils.py                       # seeding, device choice, run-folder and args.json helpers, checkpoint save/load
-├── classifier.py                  # Part 0: MNIST CNN with embed() = φ(x); training loop; argparse entry point
-├── dcgan.py                       # Part 1: Generator, Discriminator, weight init; GAN training loop; entry point
-├── wgan.py                        # Part 2: WGAN critic and training loop; imports Generator from dcgan.py
-├── vae.py                         # Part 3: conv Encoder, Decoder, reparameterization, ELBO loss; entry point
-├── fid.py                         # FID from φ features; imported by every part
-├── figures.py                     # sample grids, loss curves, latent-probe and comparison figures
-├── audit_data.py                  # prints batch shapes, value ranges, split sizes, and index hashes
+├── src/
+│   ├── data.py                    # MNIST download (python src/data.py); [-1,1] and [0,1] scalings; fixed 55k/5k split
+│   ├── utils/                     # seeding, device choice, run-folder and args.json helpers, checkpoint save/load
+│   ├── classifier.py              # Part 0: MNIST CNN with embed() = φ(x); training loop; argparse entry point
+│   ├── dcgan.py                   # Part 1: Generator, Discriminator, weight init; GAN training loop; entry point
+│   ├── wgan.py                    # Part 2: WGAN critic and training loop; imports Generator from dcgan.py
+│   ├── vae.py                     # Part 3: conv Encoder, Decoder, reparameterization, ELBO loss; entry point
+│   ├── fid.py                     # FID from φ features; imported by every part
+│   ├── figures.py                 # sample grids, loss curves, latent-probe and comparison figures
+│   └── audit_data.py              # prints batch shapes, value ranges, split sizes, and index hashes
 ├── queue.sh                       # runs a list of commands in sequence, logging each
 ├── tests/
 │   └── test_data.py               # split sizes, scaling ranges, deterministic split (pytest)
@@ -225,8 +226,8 @@ Recreate the environment with `pip install -r requirements-lock.txt`. The lock f
 ## A.4 Data
 
 ```bash
-python data.py          # downloads MNIST to data/MNIST/ (once); prints 60000 / 10000
-python audit_data.py    # optional: batch shapes, value ranges, split sizes, index hashes
+python src/data.py      # downloads MNIST to data/MNIST/ (once); prints 60000 / 10000
+python src/audit_data.py  # optional: batch shapes, value ranges, split sizes, index hashes
 ```
 
 Downloading ahead of time means training never needs internet access, which helps on clusters where compute nodes are offline.
@@ -238,10 +239,10 @@ DataLoader defaults in `data.py`: `num_workers=4`; `pin_memory=True` only when C
 ## A.5 Example commands
 
 ```bash
-python classifier.py              # Part 0 with the Setup defaults
-python dcgan.py                   # Part 1 baseline (lr 2e-4 for both networks)
-python dcgan.py --lr-d 4e-3       # Part 1 item 4: discriminator learning rate 20x
-python audit_data.py              # data pipeline check
+python src/classifier.py          # Part 0 with the Setup defaults
+python src/dcgan.py               # Part 1 baseline (lr 2e-4 for both networks)
+python src/dcgan.py --lr-d 4e-3   # Part 1 item 4: discriminator learning rate 20x
+python src/audit_data.py          # data pipeline check
 pytest -q                         # sanity checks
 ```
 

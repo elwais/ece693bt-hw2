@@ -67,7 +67,7 @@ EOF
   ssh "$HOST" "$REMOTE_ENV && cd \"\$HOME/$REMOTE_DIR\" && uv sync --locked"
 
   echo "==> fetching MNIST (skipped if already present)"
-  ssh "$HOST" "$REMOTE_ENV && cd \"\$HOME/$REMOTE_DIR\" && uv run python data.py"
+  ssh "$HOST" "$REMOTE_ENV && cd \"\$HOME/$REMOTE_DIR\" && uv run python src/data.py"
 
   echo "==> checking CUDA"
   ssh "$HOST" "$REMOTE_ENV && cd \"\$HOME/$REMOTE_DIR\" && uv run python -c \

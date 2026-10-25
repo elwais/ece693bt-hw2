@@ -28,8 +28,8 @@ from torchvision import datasets, transforms
 
 from utils.records import Splits
 
-# This file sits at the repo root, so the root is parents[0].
-DATA_ROOT = Path(__file__).resolve().parents[0] / "data"
+# This file is in src/, so the repo root (which holds data/) is parents[1].
+DATA_ROOT = Path(__file__).resolve().parents[1] / "data"
 
 SPLIT_SEED = 0
 N_VAL = 5000
