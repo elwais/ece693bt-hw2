@@ -1,15 +1,15 @@
 from collections.abc import Generator
-from torch import nn, no_grad
+from torch import nn, inference_mode
 from contextlib import contextmanager
 
 
 @contextmanager
 def eval_mode(model: nn.Module) -> Generator[None, None, None]:
-    """eval() + no_grad() as a decorator"""
+    """eval() + inference_mode() as a decorator"""
     was_training = model.training
     model.eval()
     try:
-        with no_grad():
+        with inference_mode():
             yield
     finally:
         if was_training:
