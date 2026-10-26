@@ -34,7 +34,7 @@ def test_dcgan_log_saves_spec_keys_in_order(tmp_path: Path) -> None:
 def test_log_round_trips(tmp_path: Path) -> None:
     log = VAELog()
     log.push(step=0, epoch=1, beta=0.01, loss=100.0, recon=90.0, kl=10.0)
-    log.push_val(epoch=1, loss=101.0)
+    log.push_val(epoch=1, loss=101.0, recon=91.0, kl=10.0)
     path = tmp_path / "vae.pth"
     log.save(path)
     assert VAELog.load(path) == log

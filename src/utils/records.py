@@ -128,7 +128,9 @@ class VAELog(StepLog):
     recon: list[float] = field(default_factory=list)
     kl: list[float] = field(default_factory=list)
     val_epoch: list[int] = field(default_factory=list)
-    val_loss: list[float] = field(default_factory=list)
+    val_loss: list[float] = field(default_factory=list)  # negative ELBO (beta = 1) per image
+    val_recon: list[float] = field(default_factory=list)
+    val_kl: list[float] = field(default_factory=list)
 
     def push(
         self,
@@ -147,6 +149,8 @@ class VAELog(StepLog):
         self.recon.append(recon)
         self.kl.append(kl)
 
-    def push_val(self, *, epoch: int, loss: float) -> None:
+    def push_val(self, *, epoch: int, loss: float, recon: float, kl: float) -> None:
         self.val_epoch.append(epoch)
         self.val_loss.append(loss)
+        self.val_recon.append(recon)
+        self.val_kl.append(kl)
