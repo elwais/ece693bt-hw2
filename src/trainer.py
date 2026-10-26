@@ -16,9 +16,7 @@ state() is the other abstract hook: {name: model or optimizer}. fit() puts the
 models in train(), checkpoint() saves every entry, and evaluating() switches
 the models to eval() and back.
 
-Counters: `epoch` is 1-based. `step` is 0-based and counts steps across
-epochs. During train_step and log_step it is the index of the step in
-progress, so the first step is 0; after the step it is incremented.
+Counters: `curr_epoch` is 1-based (the epoch in progress, or the last finished one). `step` is 0-based and counts steps across epochs. During train_step and log_step it is the index of the step in progress, so the first step is 0; after the step it is incremented.
 
 Not here (a subclass does it): the run folder layout, what a checkpoint file is
 called, and how the history is stored. `make_run_dir` and `save_checkpoints`
@@ -134,7 +132,7 @@ class Trainer(ABC):
     # ------------------------------------------------------------------
 
     def fit(self) -> None:
-        """Train from the epoch after `self.epoch` through `self.epochs`."""
+        """Train from the epoch after `curr_epoch` through `final_epoch`."""
         for epoch in range(self.curr_epoch + 1, self.final_epoch + 1):
             self.curr_epoch = epoch
             for module in self.modules():
