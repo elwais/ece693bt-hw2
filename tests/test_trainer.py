@@ -36,7 +36,7 @@ class Toy(Trainer):
 
     def train_step(self, stream: Iterator[Batch]) -> Stats:
         x, _ = next(stream)
-        self.calls.append((self.epoch, self.step, self.net.training))
+        self.calls.append((self.curr_epoch, self.step, self.net.training))
         loss = as_tensor(self.net(x)).pow(2).mean()
         optimizer_step(self.opt, loss)
         return {"loss": loss.detach()}
@@ -45,7 +45,7 @@ class Toy(Trainer):
         self.logged.append((self.step, stats))
 
     def end_epoch(self) -> None:
-        self.ended.append(self.epoch)
+        self.ended.append(self.curr_epoch)
 
 
 def test_loop_counts_and_indices() -> None:
@@ -54,7 +54,7 @@ def test_loop_counts_and_indices() -> None:
     assert [c[1] for c in t.calls] == list(range(12))  # 0-based, across epochs
     assert [c[0] for c in t.calls] == [1] * 4 + [2] * 4 + [3] * 4
     assert t.ended == [1, 2, 3]
-    assert (t.epoch, t.step) == (3, 12)
+    assert (t.curr_epoch, t.step) == (3, 12)
 
 
 def test_models_are_in_train_mode_during_steps() -> None:
@@ -91,7 +91,7 @@ def test_evaluating_switches_and_restores() -> None:
 def test_checkpoint_payload_and_schedule(tmp_path: Path) -> None:
     t = Toy(epochs=5, per_epoch=1)
     for epoch in range(1, 6):
-        t.epoch = epoch
+        t.curr_epoch = epoch
         t.save_checkpoints(tmp_path, every=2)
     assert sorted(p.name for p in tmp_path.glob("*.pt")) == [
         "epoch_002.pt",
@@ -99,10 +99,14 @@ def test_checkpoint_payload_and_schedule(tmp_path: Path) -> None:
         "final.pt",
         "last.pt",
     ]
-    final = cast("dict[str, object]", torch.load(tmp_path / "final.pt", weights_only=True))
+    final = cast(
+        "dict[str, object]", torch.load(tmp_path / "final.pt", weights_only=True)
+    )
     assert set(final) == {"net", "opt", "epoch"}
     assert final["epoch"] == 5
-    epoch_4 = cast("dict[str, object]", torch.load(tmp_path / "epoch_004.pt", weights_only=True))
+    epoch_4 = cast(
+        "dict[str, object]", torch.load(tmp_path / "epoch_004.pt", weights_only=True)
+    )
     assert epoch_4["epoch"] == 4
 
 

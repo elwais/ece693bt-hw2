@@ -41,10 +41,10 @@ from data import Sample, batches
 from utils import eval_mode, save_atomic
 
 # One batch: (images, labels).
-Batch = tuple[Tensor, Tensor]
+type Batch = tuple[Tensor, Tensor]
 # What train_step returns: 0-dim tensors, not floats. fit() calls .item() only on the
 # steps that are logged, so the device is not synchronised on every step.
-Stats = dict[str, Tensor]
+type Stats = dict[str, Tensor]
 
 
 class Stateful(Protocol):
@@ -88,19 +88,19 @@ class Trainer(ABC):
     """
 
     device: torch.device
-    epochs: int
     log_every: int  # 0 = never call log_step
     train_loader: DataLoader[Sample]  # set by the subclass
-    epoch: int  # 1-based: the epoch in progress, or the last finished one
+    curr_epoch: int  # 1-based: the epoch in progress, or the last finished one
+    final_epoch: int
     step: int  # 0-based: see the module docstring
 
     def __init__(
         self, *, epochs: int, device: str | torch.device, log_every: int = 0
     ) -> None:
-        self.epochs = epochs
+        self.final_epoch = epochs
         self.device = torch.device(device)
         self.log_every = log_every
-        self.epoch = 0
+        self.curr_epoch = 0
         self.step = 0
 
     # ------------------------------------------------------------------
@@ -135,8 +135,8 @@ class Trainer(ABC):
 
     def fit(self) -> None:
         """Train from the epoch after `self.epoch` through `self.epochs`."""
-        for epoch in range(self.epoch + 1, self.epochs + 1):
-            self.epoch = epoch
+        for epoch in range(self.curr_epoch + 1, self.final_epoch + 1):
+            self.curr_epoch = epoch
             for module in self.modules():
                 module.train()
             stream = self.epoch_batches()
@@ -168,14 +168,14 @@ class Trainer(ABC):
         payload: dict[str, object] = {
             key: obj.state_dict() for key, obj in self.state().items()
         }
-        payload["epoch"] = self.epoch
+        payload["epoch"] = self.curr_epoch
         return payload
 
     def save_checkpoints(self, directory: Path, every: int) -> None:
         """last.pt after every epoch, epoch_XXX.pt every `every` epochs, final.pt at the end."""
         ckpt = self.checkpoint()
         save_atomic(ckpt, directory / "last.pt")
-        if self.epoch % every == 0:
-            save_atomic(ckpt, directory / f"epoch_{self.epoch:03d}.pt")
-        if self.epoch == self.epochs:
+        if self.curr_epoch % every == 0:
+            save_atomic(ckpt, directory / f"epoch_{self.curr_epoch:03d}.pt")
+        if self.curr_epoch == self.final_epoch:
             save_atomic(ckpt, directory / "final.pt")

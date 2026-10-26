@@ -248,7 +248,7 @@ class DCGANTrainer(Trainer):
         lG = loss_G(self.net_D(x_tilde))
         optimizer_step(self.opt_G, lG)
 
-        if self.epoch == 1 and self.step % SAMPLE_EVERY == 0:
+        if self.curr_epoch == 1 and self.step % SAMPLE_EVERY == 0:
             save_samples(
                 self.net_G,
                 self.z_fixed,
@@ -267,14 +267,14 @@ class DCGANTrainer(Trainer):
     def log_step(self, stats: dict[str, float]) -> None:
         self.log.push(
             step=self.step,
-            epoch=self.epoch,
+            epoch=self.curr_epoch,
             loss_G=stats["loss_G"],
             loss_D=stats["loss_D"],
             D_x=stats["D_x"],
             D_G_z=stats["D_G_z"],
         )
         print(
-            f"epoch {self.epoch:3d}  step {self.step:6d}  "
+            f"epoch {self.curr_epoch:3d}  step {self.step:6d}  "
             f"loss_D {stats['loss_D']:.4f}  loss_G {stats['loss_G']:.4f}  "
             f"D_x {stats['D_x']:.3f}  D_G_z {stats['D_G_z']:.3f}"
         )
@@ -282,7 +282,9 @@ class DCGANTrainer(Trainer):
     @override
     def end_epoch(self) -> None:
         save_samples(
-            self.net_G, self.z_fixed, self.run_dir / "samples" / f"epoch_{self.epoch:03d}.png"
+            self.net_G,
+            self.z_fixed,
+            self.run_dir / "samples" / f"epoch_{self.curr_epoch:03d}.png",
         )
         self.log.save(self.run_dir / "logs" / "losses.pth")
         self.save_checkpoints(self.run_dir / "checkpoints", every=CKPT_EVERY)

@@ -135,7 +135,7 @@ class ClassifierTrainer(Trainer):
         with open(HISTORY, "w") as f:
             json.dump(asdict(self.history), f)
         print(
-            f"Epoch {self.epoch:02d}  val loss {val_loss:.4f}  "
+            f"Epoch {self.curr_epoch:02d}  val loss {val_loss:.4f}  "
             f"val acc {self.history.val.acc[-1]:.4f}"
         )
 
