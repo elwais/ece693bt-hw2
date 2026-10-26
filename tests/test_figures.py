@@ -41,6 +41,7 @@ def test_load_log_picks_the_class_from_the_family_folder(tmp_path: Path) -> None
         load_log(make_run(tmp_path / "a", "dcgan", dcgan_log())), DCGANLog
     )
     assert isinstance(load_log(make_run(tmp_path / "b", "wgan", wgan_log())), WGANLog)
+    assert isinstance(load_log(make_run(tmp_path / "d", "wgangp", wgan_log())), WGANLog)
     assert isinstance(load_log(make_run(tmp_path / "c", "vae", vae_log())), VAELog)
 
 
@@ -69,4 +70,5 @@ def test_export_losses_writes_the_runs_own_keys(tmp_path: Path) -> None:
 def test_plot_losses_draws_every_family(tmp_path: Path) -> None:
     assert plot_losses(make_run(tmp_path / "a", "dcgan", dcgan_log())).exists()
     assert plot_losses(make_run(tmp_path / "b", "wgan", wgan_log())).exists()
+    assert plot_losses(make_run(tmp_path / "d", "wgangp", wgan_log())).exists()
     assert plot_losses(make_run(tmp_path / "c", "vae", vae_log())).exists()

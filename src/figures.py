@@ -64,7 +64,7 @@ def load_log(run: Path) -> DCGANLog | WGANLog | VAELog:
     match run.parent.name:
         case "dcgan":
             return DCGANLog.load(path)
-        case "wgan":
+        case "wgan" | "wgangp":  # the GP variant logs the same record
             return WGANLog.load(path)
         case "vae":
             return VAELog.load(path)
@@ -121,7 +121,8 @@ def plot_losses(run: Path) -> Path:
         )
         _ = ax_right.plot(log.step, log.w_dist, linewidth=0.8, label="w_dist = -loss_D")
         _ = ax_right.set_ylabel("Wasserstein estimate")
-        _ = ax_right.set_title("critic estimate of W1 (clipped critic)")
+        suffix = "clipped critic" if run.parent.name == "wgan" else "gradient penalty"
+        _ = ax_right.set_title(f"critic estimate of W1 ({suffix})")
     _ = ax_loss.set_xlabel("step")
     _ = ax_loss.set_ylabel("loss")
     _ = ax_loss.set_title(run.name)

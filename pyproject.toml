@@ -20,6 +20,9 @@ pythonpath = ["src"]
 testpaths = ["tests"]
 
 [tool.basedpyright]
+# base.py is a scratch script; the codebase is src/ and its tests. Keep the
+# checker scoped to what the repo owns (bench_classifier.py is untracked).
+include = ["src", "tests"]
 # basedpyright defaults to "all"; this repo uses "strict" instead.
 typeCheckingMode = "strict"
 # torchvision ships no py.typed or stubs. Its values are Unknown to pyright anyway,
