@@ -7,7 +7,8 @@ The report does not use these images: it reads outputs/manifest.json (see manife
 and draws its plots and sample grids in Typst. `export` is used by manifest.py.
 
     python figures.py losses RUN_DIR
-        -> RUN_DIR/figures/losses.png: loss_D and loss_G, and D_x and D_G_z, vs step
+        -> RUN_DIR/figures/losses.png: loss_D and loss_G vs step, with D_x and D_G_z
+           (dcgan) or the Wasserstein estimate w_dist (wgan) beside them
 
     python figures.py grids RUN_A RUN_B [...] -o OUT.png
         -> the final sample grid of each run, side by side
@@ -37,7 +38,7 @@ import matplotlib.image as mpimg  # noqa: E402
 from matplotlib.axes import Axes  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from utils import DCGANLog  # noqa: E402
+from utils import DCGANLog, WGANLog  # noqa: E402
 
 
 def final_sample(run: Path) -> Path:
@@ -54,27 +55,49 @@ def save(fig: Figure, out: Path) -> Path:
     return out
 
 
+def load_log(run: Path) -> DCGANLog | WGANLog:
+    """RUN/logs/losses.pth as the log class of the run's family (the folder above it).
+
+    The classes check their keys exactly, so a WGAN file cannot be read as a DCGAN log.
+    """
+    path = run / "logs" / "losses.pth"
+    match run.parent.name:
+        case "dcgan":
+            return DCGANLog.load(path)
+        case "wgan":
+            return WGANLog.load(path)
+        case family:
+            raise SystemExit(f"{run}: no losses.pth reader for family {family!r}")
+
+
 def plot_losses(run: Path) -> Path:
-    log = DCGANLog.load(run / "logs" / "losses.pth")
+    log = load_log(run)
     fig = Figure(figsize=(11, 4))
     ax_loss: Axes = fig.add_subplot(1, 2, 1)
-    ax_prob: Axes = fig.add_subplot(1, 2, 2)
+    ax_right: Axes = fig.add_subplot(1, 2, 2)
 
-    _ = ax_loss.plot(log.step, log.loss_D, linewidth=0.8, label="loss_D (real->1 + fake->0)")
-    _ = ax_loss.plot(log.step, log.loss_G, linewidth=0.8, label="loss_G (non-saturating)")
+    if isinstance(log, DCGANLog):
+        _ = ax_loss.plot(log.step, log.loss_D, linewidth=0.8, label="loss_D (real->1 + fake->0)")
+        _ = ax_loss.plot(log.step, log.loss_G, linewidth=0.8, label="loss_G (non-saturating)")
+        _ = ax_right.plot(log.step, log.D_x, linewidth=0.8, label="D(x), mean")
+        _ = ax_right.plot(log.step, log.D_G_z, linewidth=0.8, label="D(G(z)), mean")
+        _ = ax_right.axhline(0.5, color="gray", linestyle=":", linewidth=0.8)
+        _ = ax_right.set_ylabel("probability")
+        _ = ax_right.set_ylim(0, 1)
+        _ = ax_right.set_title("discriminator outputs (pre-update)")
+    else:
+        # Critic scores are not probabilities: plot the Wasserstein estimate instead.
+        _ = ax_loss.plot(log.step, log.loss_D, linewidth=0.8, label="loss_D (critic: fake - real)")
+        _ = ax_loss.plot(log.step, log.loss_G, linewidth=0.8, label="loss_G (-E[D(G(z))])")
+        _ = ax_right.plot(log.step, log.w_dist, linewidth=0.8, label="w_dist = -loss_D")
+        _ = ax_right.set_ylabel("Wasserstein estimate")
+        _ = ax_right.set_title("critic estimate of W1 (clipped critic)")
     _ = ax_loss.set_xlabel("step")
     _ = ax_loss.set_ylabel("loss")
     _ = ax_loss.set_title(run.name)
     _ = ax_loss.legend()
-
-    _ = ax_prob.plot(log.step, log.D_x, linewidth=0.8, label="D(x), mean")
-    _ = ax_prob.plot(log.step, log.D_G_z, linewidth=0.8, label="D(G(z)), mean")
-    _ = ax_prob.axhline(0.5, color="gray", linestyle=":", linewidth=0.8)
-    _ = ax_prob.set_xlabel("step")
-    _ = ax_prob.set_ylabel("probability")
-    _ = ax_prob.set_ylim(0, 1)
-    _ = ax_prob.set_title("discriminator outputs (pre-update)")
-    _ = ax_prob.legend()
+    _ = ax_right.set_xlabel("step")
+    _ = ax_right.legend()
 
     fig.tight_layout()
     return save(fig, run / "figures" / "losses.png")
@@ -150,7 +173,7 @@ def plot_fid(runs: list[Path], out: Path) -> Path:
 
 def export_losses(run: Path) -> Path:
     out = run / "logs" / "losses.json"
-    _ = out.write_text(json.dumps(asdict(DCGANLog.load(run / "logs" / "losses.pth"))))
+    _ = out.write_text(json.dumps(asdict(load_log(run))))
     return out
 
 

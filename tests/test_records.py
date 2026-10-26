@@ -50,3 +50,13 @@ def test_load_rejects_file_from_another_log_class(tmp_path: Path) -> None:
 def test_push_requires_keyword_arguments() -> None:
     with pytest.raises(TypeError):
         DCGANLog().push(0, 1, 0.7, 1.2, 0.9, 0.2)  # type: ignore[misc]
+
+
+def test_wgan_log_saves_its_keys_in_order(tmp_path: Path) -> None:
+    log = WGANLog()
+    log.push(step=0, epoch=1, loss_G=-0.5, loss_D=-1.5, w_dist=1.5)
+    path = tmp_path / "losses.pth"
+    log.save(path)
+    raw = cast(dict[str, object], torch.load(path, weights_only=True))
+    assert list(raw) == ["step", "epoch", "loss_G", "loss_D", "w_dist"]
+    assert WGANLog.load(path) == log
