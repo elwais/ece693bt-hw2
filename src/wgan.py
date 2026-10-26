@@ -115,6 +115,7 @@ class Args(argparse.Namespace):
     epochs: int = 25
     seed: int = 0
     name: str | None = None
+    ckpt_every: int = 5  # epochs between checkpoints/epoch_XXX.pt
 
 
 def parse_args() -> Args:
@@ -124,6 +125,7 @@ def parse_args() -> Args:
     _ = parser.add_argument("--epochs", type=int, default=Args.epochs)
     _ = parser.add_argument("--seed", type=int, default=Args.seed)
     _ = parser.add_argument("--name", type=str, default=Args.name)
+    _ = parser.add_argument("--ckpt-every", type=int, default=Args.ckpt_every)
     return parser.parse_args(namespace=Args())
 
 
@@ -139,6 +141,7 @@ def config(args: Args) -> dict[str, float | int | str | None]:
         "epochs": args.epochs,
         "seed": args.seed,
         "name": args.name,
+        "ckpt_every": args.ckpt_every,
         "critic_steps": CRITIC_STEPS,
         "clip": CLIP,
     }
@@ -156,7 +159,6 @@ Z_DIM = 100
 CRITIC_STEPS = 5  # critic steps per generator step
 CLIP = 0.01  # critic weights are clamped to [-CLIP, CLIP]; the paper chose it empirically
 LOG_EVERY = 50  # steps between rows of losses.pth; a multiple of CRITIC_STEPS
-CKPT_EVERY = 5  # epochs between epoch_XXX.pt
 
 
 class WGANTrainer(Trainer):
@@ -173,6 +175,7 @@ class WGANTrainer(Trainer):
     z_fixed: Tensor  # the 64 latent vectors of every sample grid
     config: dict[str, float | int | str | None]
     run_dir: Path
+    ckpt_every: int
     log: WGANLog
 
     def __init__(self, args: Args) -> None:
@@ -183,6 +186,7 @@ class WGANTrainer(Trainer):
         super().__init__(epochs=args.epochs, device=device, log_every=LOG_EVERY)
 
         self.config = config(args)
+        self.ckpt_every = args.ckpt_every
         self.run_dir = make_run_dir("wgan", args.name, self.config)
 
         # train for training; val and test are used later, for FID
@@ -260,7 +264,7 @@ class WGANTrainer(Trainer):
             self.run_dir / "samples" / f"epoch_{self.curr_epoch:03d}.png",
         )
         self.log.save(self.run_dir / "logs" / "losses.pth")
-        self.save_checkpoints(self.run_dir / "checkpoints", every=CKPT_EVERY)
+        self.save_checkpoints(self.run_dir / "checkpoints", every=self.ckpt_every)
 
 
 if __name__ == "__main__":
