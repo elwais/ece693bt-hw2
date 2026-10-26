@@ -38,7 +38,7 @@ import matplotlib.image as mpimg  # noqa: E402
 from matplotlib.axes import Axes  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from utils import DCGANLog, WGANLog  # noqa: E402
+from utils import DCGANLog, VAELog, WGANLog  # noqa: E402
 
 
 def final_sample(run: Path) -> Path:
@@ -55,7 +55,7 @@ def save(fig: Figure, out: Path) -> Path:
     return out
 
 
-def load_log(run: Path) -> DCGANLog | WGANLog:
+def load_log(run: Path) -> DCGANLog | WGANLog | VAELog:
     """RUN/logs/losses.pth as the log class of the run's family (the folder above it).
 
     The classes check their keys exactly, so a WGAN file cannot be read as a DCGAN log.
@@ -66,6 +66,8 @@ def load_log(run: Path) -> DCGANLog | WGANLog:
             return DCGANLog.load(path)
         case "wgan":
             return WGANLog.load(path)
+        case "vae":
+            return VAELog.load(path)
         case family:
             raise SystemExit(f"{run}: no losses.pth reader for family {family!r}")
 
@@ -85,6 +87,16 @@ def plot_losses(run: Path) -> Path:
         _ = ax_right.set_ylabel("probability")
         _ = ax_right.set_ylim(0, 1)
         _ = ax_right.set_title("discriminator outputs (pre-update)")
+    elif isinstance(log, VAELog):
+        _ = ax_loss.plot(log.step, log.recon, linewidth=0.8, label="recon (train)")
+        _ = ax_loss.plot(log.step, log.kl, linewidth=0.8, label="KL (train)")
+        _ = ax_loss.plot(log.step, log.loss, linewidth=0.8, label="recon + beta KL (train)")
+        _ = ax_right.plot(log.val_epoch, log.val_loss, marker="o", markersize=2, label="val -ELBO (beta = 1)")
+        _ = ax_right.plot(log.val_epoch, log.val_recon, linewidth=0.8, label="val recon")
+        _ = ax_right.plot(log.val_epoch, log.val_kl, linewidth=0.8, label="val KL")
+        _ = ax_right.set_xlabel("epoch")
+        _ = ax_right.set_ylabel("nats per image")
+        _ = ax_right.set_title("validation")
     else:
         # Critic scores are not probabilities: plot the Wasserstein estimate instead.
         _ = ax_loss.plot(log.step, log.loss_D, linewidth=0.8, label="loss_D (critic: fake - real)")
@@ -96,7 +108,8 @@ def plot_losses(run: Path) -> Path:
     _ = ax_loss.set_ylabel("loss")
     _ = ax_loss.set_title(run.name)
     _ = ax_loss.legend()
-    _ = ax_right.set_xlabel("step")
+    if not isinstance(log, VAELog):
+        _ = ax_right.set_xlabel("step")
     _ = ax_right.legend()
 
     fig.tight_layout()
@@ -187,7 +200,7 @@ class Args(argparse.Namespace):
 
 
 def parse_args() -> Args:
-    parser = argparse.ArgumentParser(description="Figures for DCGAN runs.")
+    parser = argparse.ArgumentParser(description="Quick-look figures for DCGAN, WGAN and VAE runs.")
     sub = parser.add_subparsers(dest="cmd", required=True)
     p_loss = sub.add_parser("losses")
     _ = p_loss.add_argument("run", type=Path)
