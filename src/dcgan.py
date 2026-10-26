@@ -10,7 +10,7 @@ from torchvision.utils import save_image  # pyright: ignore[reportUnknownVariabl
 from data import gan_loaders
 from trainer import Batch, Stateful, Stats, Trainer, make_run_dir, optimizer_step
 from utils import (
-    GANLog,
+    DCGANLog,
     as_tensor,
     built,
     eval_mode,
@@ -196,7 +196,7 @@ class DCGANTrainer(Trainer):
     z_fixed: Tensor  # the 64 latent vectors of every sample grid
     config: dict[str, float | int | str | None]
     run_dir: Path
-    log: GANLog
+    log: DCGANLog
 
     def __init__(self, args: Args) -> None:
         device = get_preferred_device()
@@ -216,7 +216,7 @@ class DCGANTrainer(Trainer):
         self.opt_G = torch.optim.Adam(self.net_G.parameters(), lr=args.lr_g, betas=BETAS)
         self.opt_D = torch.optim.Adam(self.net_D.parameters(), lr=args.lr_d, betas=BETAS)
 
-        self.log = GANLog()
+        self.log = DCGANLog()
 
     @override
     def state(self) -> dict[str, Stateful]:

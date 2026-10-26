@@ -75,7 +75,7 @@ class StepLog(Log):
 
 
 @dataclass
-class GANLog(StepLog):
+class DCGANLog(StepLog):
     """DCGAN (Setup_GAN.md Task 1). Field names are fixed by the spec's losses.pth."""
 
     loss_G: list[float] = field(default_factory=list)

@@ -37,7 +37,7 @@ import matplotlib.image as mpimg  # noqa: E402
 from matplotlib.axes import Axes  # noqa: E402
 from matplotlib.figure import Figure  # noqa: E402
 
-from utils import GANLog  # noqa: E402
+from utils import DCGANLog  # noqa: E402
 
 
 def final_sample(run: Path) -> Path:
@@ -55,7 +55,7 @@ def save(fig: Figure, out: Path) -> Path:
 
 
 def plot_losses(run: Path) -> Path:
-    log = GANLog.load(run / "logs" / "losses.pth")
+    log = DCGANLog.load(run / "logs" / "losses.pth")
     fig = Figure(figsize=(11, 4))
     ax_loss: Axes = fig.add_subplot(1, 2, 1)
     ax_prob: Axes = fig.add_subplot(1, 2, 2)
@@ -150,7 +150,7 @@ def plot_fid(runs: list[Path], out: Path) -> Path:
 
 def export_losses(run: Path) -> Path:
     out = run / "logs" / "losses.json"
-    _ = out.write_text(json.dumps(asdict(GANLog.load(run / "logs" / "losses.pth"))))
+    _ = out.write_text(json.dumps(asdict(DCGANLog.load(run / "logs" / "losses.pth"))))
     return out
 
 
