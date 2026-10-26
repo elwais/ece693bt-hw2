@@ -131,7 +131,14 @@ class VAELog(StepLog):
     val_loss: list[float] = field(default_factory=list)
 
     def push(
-        self, *, step: int, epoch: int, beta: float, loss: float, recon: float, kl: float
+        self,
+        *,
+        step: int,
+        epoch: int,
+        beta: float,
+        loss: float,
+        recon: float,
+        kl: float,
     ) -> None:
         self.step.append(step)
         self.epoch.append(epoch)

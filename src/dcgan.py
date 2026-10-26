@@ -208,13 +208,19 @@ class DCGANTrainer(Trainer):
 
         # train for training; val and test are used later, for FID
         self.train_loader = gan_loaders().train
-        self.z_fixed = torch.randn(64, Z_DIM, 1, 1, device=self.device)  # drawn right after seeding
+        self.z_fixed = torch.randn(
+            64, Z_DIM, 1, 1, device=self.device
+        )  # drawn right after seeding
 
         with torch.device(self.device):
             self.net_G = Generator()
             self.net_D = Discriminator()
-        self.opt_G = torch.optim.Adam(self.net_G.parameters(), lr=args.lr_g, betas=BETAS)
-        self.opt_D = torch.optim.Adam(self.net_D.parameters(), lr=args.lr_d, betas=BETAS)
+        self.opt_G = torch.optim.Adam(
+            self.net_G.parameters(), lr=args.lr_g, betas=BETAS
+        )
+        self.opt_D = torch.optim.Adam(
+            self.net_D.parameters(), lr=args.lr_d, betas=BETAS
+        )
 
         self.log = DCGANLog()
 
