@@ -4,7 +4,8 @@
 
     python diagnostics.py [RUN_DIR ...]
 
-Without RUN_DIRs, uses every outputs/dcgan/* run whose name does not end in "_smoke".
+Without RUN_DIRs, uses every run under outputs/<family>/ whose name does not end in
+"_smoke" (so any family — dcgan, wgan, vae — is discovered).
 
 1. Real-data FID floor: FID between two disjoint sets of *real* images, i.e. what a
    perfect generator would score at the same sample sizes. Two pairs:
@@ -51,7 +52,6 @@ from fid import (  # noqa: E402
 )
 from utils import eval_mode, get_preferred_device  # noqa: E402
 
-RUNS_ROOT = Path("outputs/dcgan")
 OUT_JSON = Path("outputs/diagnostics.json")
 OUT_FIG = Path("outputs/figures/class_hist.png")
 N_SAMPLES = 10_000
@@ -152,7 +152,17 @@ def plot_hist(counts_by_name: dict[str, list[int]], out: Path) -> Path:
 
 
 def default_runs() -> list[Path]:
-    return sorted(p for p in RUNS_ROOT.iterdir() if p.is_dir() and not p.name.endswith("_smoke"))
+    """Every run under outputs/, one level per family (dcgan, wgan, vae, ...)."""
+    root = Path("outputs")
+    if not root.is_dir():
+        return []
+    runs = [
+        p
+        for family in sorted(f for f in root.iterdir() if f.is_dir())
+        for p in family.iterdir()
+        if p.is_dir() and not p.name.endswith("_smoke")
+    ]
+    return sorted(runs)
 
 
 if __name__ == "__main__":
