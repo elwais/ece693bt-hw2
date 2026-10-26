@@ -11,3 +11,4 @@ outputs/dcgan/20261025-045709_g5d2e-3,dcgan,5e-4,2e-3,,50,0,final.pt,119.0,117.3
 outputs/dcgan/20261025-050039_ttur,dcgan,1e-4,4e-4,,25,0,final.pt,207.9,202.8,"two-timescale 1e-4/4e-4; best val = final (epoch_025); n=10000"
 outputs/dcgan/20261025-050412_baseline_s1,dcgan,2e-4,2e-4,,25,1,final.pt,162.3,159.2,"seed-noise pair of baseline; best val = final (epoch_025); n=10000"
 outputs/dcgan/20261025-050416_d20x_s1,dcgan,2e-4,4e-3,,25,1,final.pt,138.1,135.0,"seed-noise pair of d20x; best val = final (epoch_025); n=10000"
+outputs/wgan/20261026-001936_wgan_default,wgan,5e-5,5e-5,,125,0,final.pt,350.1,343.0,"WGAN paper hparams (RMSprop 5e-5, clip 0.01, critic 5/G step); best val = final (epoch_125); n=10000 generated, test n=10000; epoch_125 == 10750 G updates == DCGAN 25x430; val-chosen"
