@@ -5,7 +5,7 @@
 #   ./remote.sh push             sync code from this laptop to the box
 #   ./remote.sh run NAME CMD...  start CMD in a detached tmux session NAME
 #   ./remote.sh status           tmux sessions, GPU, and last log lines
-#   ./remote.sh pull             copy outputs/ and results back to this laptop
+#   ./remote.sh pull             copy run folders and runs.csv back to this laptop
 #   ./remote.sh ssh              open a shell on the box in the project dir
 #
 # Config (environment variables):
@@ -17,7 +17,7 @@
 #   - The box gets its own environment (uv sync on Linux + CUDA), never the
 #     macOS .venv. requirements-lock.txt is macOS-only and is not used here.
 #   - The box writes its own results/runs.csv. pull saves it as
-#     results/runs.remote.csv so you merge rows by hand.
+#     results/runs.<host>.csv so you merge rows by hand.
 #   - Runs go in tmux, so they survive a dropped ssh connection.
 #   - Idempotent: re-running bootstrap on a configured box is safe.
 
@@ -122,12 +122,18 @@ EOF
 }
 
 pull() {
+  # Run folders are timestamped, so several boxes can pull into one outputs/.
+  # Files that summarize all of outputs/ (or that came from this laptop) stay
+  # local: a box's copy would overwrite the laptop's.
   echo "==> pulling outputs/ from $HOST"
   mkdir -p "$HERE/outputs"
-  rsync -rpt "$HOST:$REMOTE_DIR/outputs/" "$HERE/outputs/"
-  echo "==> pulling results/runs.csv as runs.remote.csv (merge by hand)"
+  rsync -rpt \
+    --exclude=/diagnostics.json --exclude=/manifest.json --exclude=/figures/ \
+    --exclude=/classifier.pt --exclude=/classifier_history.json \
+    "$HOST:$REMOTE_DIR/outputs/" "$HERE/outputs/"
+  echo "==> pulling results/runs.csv as runs.$HOST.csv (merge by hand)"
   mkdir -p "$HERE/results"
-  rsync -pt "$HOST:$REMOTE_DIR/results/runs.csv" "$HERE/results/runs.remote.csv" \
+  rsync -pt "$HOST:$REMOTE_DIR/results/runs.csv" "$HERE/results/runs.$HOST.csv" \
     || echo "(no remote runs.csv yet)"
 }
 
