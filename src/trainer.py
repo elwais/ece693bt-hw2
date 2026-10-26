@@ -27,7 +27,7 @@ import json
 from abc import ABC, abstractmethod
 from collections.abc import Generator, Iterator, Mapping
 from contextlib import ExitStack, contextmanager
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
@@ -69,7 +69,8 @@ def make_run_dir(
     subdirs: tuple[str, ...] = ("checkpoints", "samples", "logs"),
 ) -> Path:
     """outputs/<family>/<YYYYmmdd-HHMMSS>[_<name>]/ with its subfolders and args.json."""
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    # UTC keeps run directory names ordered and stable across machines and boxes.
+    stamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
     run = Path("outputs") / family / (f"{stamp}_{name}" if name else stamp)
     for sub in subdirs:
         (run / sub).mkdir(parents=True, exist_ok=False)

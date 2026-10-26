@@ -10,7 +10,9 @@ from data import get_test_loader, get_train_val_loaders
 from fid import fid_from_stats, load_classifier, mean_cov, real_features
 
 HAVE_DATA = Path("data/MNIST/raw").exists() and Path("outputs/classifier.pt").exists()
-pytestmark = pytest.mark.skipif(not HAVE_DATA, reason="needs data/MNIST and outputs/classifier.pt")
+pytestmark = pytest.mark.skipif(
+    not HAVE_DATA, reason="needs data/MNIST and outputs/classifier.pt"
+)
 
 
 @pytest.fixture(scope="module")

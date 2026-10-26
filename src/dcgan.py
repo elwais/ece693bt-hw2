@@ -1,11 +1,13 @@
 import argparse
 from collections.abc import Iterator
 from pathlib import Path
-from typing import TypeVar, override
+from typing import override
 
-from torch import Tensor, nn
 import torch
-from torchvision.utils import save_image  # pyright: ignore[reportUnknownVariableType]  # torchvision has no stubs
+from torch import Tensor, nn
+from torchvision.utils import (
+    save_image,  # pyright: ignore[reportUnknownVariableType]  # torchvision has no stubs
+)
 
 from data import gan_loaders
 from trainer import Batch, Stateful, Stats, Trainer, make_run_dir, optimizer_step
@@ -35,12 +37,9 @@ def _init_layer(m: nn.Module) -> None:
         _ = nn.init.zeros_(m.bias)
 
 
-# For making the type checker complain if inputs are not subclassed from nn.Module
-M = TypeVar("M", bound=nn.Module)
-
-
-# Using `_init_layer` to apply the weight initialization
-def _dcgan_init(net: M) -> M:
+# Using `_init_layer` to apply the weight initialization; the bound `M: nn.Module`
+# makes the type checker complain if inputs are not subclassed from nn.Module
+def _dcgan_init[M: nn.Module](net: M) -> M:
     """Apply Setup's initialization to every layer of `net`; return `net`."""
     return net.apply(_init_layer)
 

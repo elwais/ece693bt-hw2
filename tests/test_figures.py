@@ -37,7 +37,9 @@ def vae_log() -> VAELog:
 
 
 def test_load_log_picks_the_class_from_the_family_folder(tmp_path: Path) -> None:
-    assert isinstance(load_log(make_run(tmp_path / "a", "dcgan", dcgan_log())), DCGANLog)
+    assert isinstance(
+        load_log(make_run(tmp_path / "a", "dcgan", dcgan_log())), DCGANLog
+    )
     assert isinstance(load_log(make_run(tmp_path / "b", "wgan", wgan_log())), WGANLog)
     assert isinstance(load_log(make_run(tmp_path / "c", "vae", vae_log())), VAELog)
 

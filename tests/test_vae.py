@@ -1,5 +1,5 @@
 import argparse
-from itertools import islice
+from itertools import islice, pairwise
 
 import pytest
 import torch
@@ -10,9 +10,9 @@ from vae import (
     HOLD_EPOCHS,
     RAMP_END_EPOCH,
     SCHEDULES,
+    Z_DIM,
     Decoder,
     Encoder,
-    Z_DIM,
     betas,
     parse_beta,
     ramp,
@@ -44,7 +44,7 @@ def test_schedule_holds_ramps_monotonically_then_stays_at_end(schedule: str) -> 
     hold = HOLD_EPOCHS * STEPS
     end = RAMP_END_EPOCH * STEPS
     assert values[:hold] == [BETA_START] * hold
-    assert all(a <= b for a, b in zip(values, values[1:]))
+    assert all(a <= b for a, b in pairwise(values))
     assert values[end - 1] == pytest.approx(BETA_END)
     assert values[end:] == [BETA_END] * (n - end)
     assert values[hold] > BETA_START  # epoch 2 starts moving

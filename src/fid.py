@@ -112,7 +112,9 @@ def load_classifier(device: str) -> Classifier:
 
 def load_generator(path: Path, device: str) -> tuple[Generator, int]:
     """Generator weights and the epoch from a checkpoint written by dcgan.py."""
-    raw = cast("dict[str, object]", torch.load(path, map_location="cpu", weights_only=True))
+    raw = cast(
+        "dict[str, object]", torch.load(path, map_location="cpu", weights_only=True)
+    )
     state = cast("dict[str, Tensor]", raw["G"])
     epoch = cast("int", raw["epoch"])
     with torch.device(device):
@@ -135,9 +137,13 @@ class Args(argparse.Namespace):
 
 
 def parse_args() -> Args:
-    parser = argparse.ArgumentParser(description="FID of a DCGAN checkpoint on classifier features.")
+    parser = argparse.ArgumentParser(
+        description="FID of a DCGAN checkpoint on classifier features."
+    )
     _ = parser.add_argument("run_dir", type=Path)
-    _ = parser.add_argument("--checkpoint", default=Args.checkpoint, help="a file in checkpoints/, or all")
+    _ = parser.add_argument(
+        "--checkpoint", default=Args.checkpoint, help="a file in checkpoints/, or all"
+    )
     _ = parser.add_argument("--split", choices=["val", "test"], default=Args.split)
     _ = parser.add_argument("--n", type=int, default=Args.n)
     _ = parser.add_argument("--seed", type=int, default=Args.seed)
@@ -165,16 +171,28 @@ if __name__ == "__main__":
     device = get_preferred_device()
 
     out = args.run_dir / "fid.json"
-    results = cast("list[dict[str, object]]", json.loads(out.read_text())) if out.exists() else []
+    results = (
+        cast("list[dict[str, object]]", json.loads(out.read_text()))
+        if out.exists()
+        else []
+    )
     todo = [
         name
         for name in checkpoint_names(args.run_dir, args.checkpoint)
         if not already_done(
-            results, {"checkpoint": name, "split": args.split, "n_generated": args.n, "seed": args.seed}
+            results,
+            {
+                "checkpoint": name,
+                "split": args.split,
+                "n_generated": args.n,
+                "seed": args.seed,
+            },
         )
     ]
     if not todo:
-        print(f"{args.run_dir.name}: nothing to do ({args.checkpoint}, {args.split}, n={args.n})")
+        print(
+            f"{args.run_dir.name}: nothing to do ({args.checkpoint}, {args.split}, n={args.n})"
+        )
         raise SystemExit(0)
 
     loaders = gan_loaders()
@@ -198,5 +216,9 @@ if __name__ == "__main__":
                 "fid": fid,
             }
         )
-        _ = out.write_text(json.dumps(results, indent=2))  # after each checkpoint: partial runs keep results
-        print(f"{args.run_dir.name}  {name}  epoch {epoch}  {args.split}  n={args.n}  FID {fid:.3f}")
+        _ = out.write_text(
+            json.dumps(results, indent=2)
+        )  # after each checkpoint: partial runs keep results
+        print(
+            f"{args.run_dir.name}  {name}  epoch {epoch}  {args.split}  n={args.n}  FID {fid:.3f}"
+        )

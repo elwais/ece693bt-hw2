@@ -1,7 +1,8 @@
 """Trivial but nice nonetheless "device-getter;" CUDA then MPS then CPU"""
 
-import torch
 from typing import Literal
+
+import torch
 
 
 def get_preferred_device() -> Literal["cuda", "mps", "cpu"]:

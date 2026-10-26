@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 import torch
-import torch.nn as nn
+from torch import nn
 
 from utils import as_tensor, built, load_params, nn_dataclass, save_atomic, save_params
 
@@ -69,7 +69,6 @@ def test_init_false_field_uses_default_and_is_not_a_parameter() -> None:
         _ = Counter(5, 7)  # pyright: ignore[reportCallIssue]
 
 
-
 def test_built_field_is_fresh_per_instance_and_not_a_parameter() -> None:
     @nn_dataclass
     class Net(nn.Module):
@@ -81,7 +80,6 @@ def test_built_field_is_fresh_per_instance_and_not_a_parameter() -> None:
     assert "head.weight" in dict(a.named_parameters())  # registered as a submodule
     with pytest.raises(TypeError):
         _ = Net(head=nn.Linear(2, 2))  # pyright: ignore[reportCallIssue]
-
 
 
 def test_built_rejects_a_module_instead_of_a_factory() -> None:
@@ -122,7 +120,10 @@ def test_rejects_class_with_own_init() -> None:
 
 
 def test_docstring_lists_real_parameters() -> None:
-    assert Block.__doc__ == "Block(width: int, depth: int = 2, tags: list[str] | None = None)"
+    assert (
+        Block.__doc__
+        == "Block(width: int, depth: int = 2, tags: list[str] | None = None)"
+    )
 
 
 def test_kw_only_field_must_be_passed_by_keyword() -> None:
@@ -173,6 +174,7 @@ def test_save_atomic_creates_parent_dirs_and_round_trips(tmp_path: Path) -> None
 def test_save_atomic_keeps_old_file_if_write_fails(tmp_path: Path) -> None:
     path = tmp_path / "last.pt"
     save_atomic({"epoch": 1}, path)
+
     def unpicklable() -> Iterator[int]:
         yield 1
 

@@ -26,31 +26,31 @@ Writes outputs/diagnostics.json and outputs/figures/class_hist.png.
 
 import json
 import math
-from pathlib import Path
 import sys
+from pathlib import Path
 
 import matplotlib
 
 matplotlib.use("Agg")
 
-import torch  # noqa: E402
-from matplotlib.axes import Axes  # noqa: E402
-from matplotlib.figure import Figure  # noqa: E402
-from torch import Tensor  # noqa: E402
-from torch.utils.data import DataLoader, Subset  # noqa: E402
+import torch
+from matplotlib.axes import Axes
+from matplotlib.figure import Figure
+from torch import Tensor
+from torch.utils.data import DataLoader, Subset
 
-from classifier import Classifier  # noqa: E402
-from data import Sample, batches, gan_loaders, get_train_val_datasets  # noqa: E402
-from fid import (  # noqa: E402
-    Z_DIM,
+from classifier import Classifier
+from data import Sample, batches, gan_loaders, get_train_val_datasets
+from fid import (
     GEN_BATCH,
+    Z_DIM,
     fid_from_stats,
     load_classifier,
     load_generator,
     mean_cov,
     real_features,
 )
-from utils import eval_mode, get_preferred_device  # noqa: E402
+from utils import eval_mode, get_preferred_device
 
 OUT_JSON = Path("outputs/diagnostics.json")
 OUT_FIG = Path("outputs/figures/class_hist.png")
@@ -104,7 +104,8 @@ def class_stats(probs: Tensor) -> dict[str, object]:
     entropy = float(-(nz * nz.log()).sum().item())
     return {
         "counts": [int(c) for c in counts],
-        "entropy_ratio": entropy / math.log(10),  # 1.0 = perfectly uniform over 10 digits
+        "entropy_ratio": entropy
+        / math.log(10),  # 1.0 = perfectly uniform over 10 digits
         "max_over_min": float(counts.max().item()) / max(int(counts.min().item()), 1),
         "mean_top_prob": float(top.mean().item()),
         "unsure_frac": float((top < UNSURE).double().mean().item()),
@@ -121,7 +122,9 @@ def classify_real_test(clf: Classifier, device: str) -> Tensor:
 
 def classify_samples(run: Path, clf: Classifier, device: str) -> tuple[Tensor, int]:
     G, epoch = load_generator(run / "checkpoints" / "final.pt", device)
-    z_all = torch.randn(N_SAMPLES, Z_DIM, 1, 1, generator=torch.Generator().manual_seed(SEED))
+    z_all = torch.randn(
+        N_SAMPLES, Z_DIM, 1, 1, generator=torch.Generator().manual_seed(SEED)
+    )
     chunks: list[Tensor] = []
     with eval_mode(G), eval_mode(clf):
         for i in range(0, N_SAMPLES, GEN_BATCH):
@@ -143,7 +146,9 @@ def plot_hist(counts_by_name: dict[str, list[int]], out: Path) -> Path:
     _ = ax.set_xticks(range(10))
     _ = ax.set_xlabel("predicted digit")
     _ = ax.set_ylabel("share of 10k samples")
-    _ = ax.set_title("Classifier labels of generated samples (final.pt) vs the real test set")
+    _ = ax.set_title(
+        "Classifier labels of generated samples (final.pt) vs the real test set"
+    )
     _ = ax.legend(fontsize=8)
     fig.tight_layout()
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -188,6 +193,14 @@ if __name__ == "__main__":
 
     OUT_JSON.parent.mkdir(parents=True, exist_ok=True)
     _ = OUT_JSON.write_text(
-        json.dumps({"fid_floor": floor, "class_hist": stats, "n_samples": N_SAMPLES, "seed": SEED}, indent=2)
+        json.dumps(
+            {
+                "fid_floor": floor,
+                "class_hist": stats,
+                "n_samples": N_SAMPLES,
+                "seed": SEED,
+            },
+            indent=2,
+        )
     )
     print(OUT_JSON, plot_hist(counts, OUT_FIG))

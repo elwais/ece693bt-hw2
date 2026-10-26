@@ -1,10 +1,8 @@
 from pathlib import Path
-from typing import TypeVar, cast
+from typing import cast
 
 import torch
 from torch import Tensor, nn
-
-M = TypeVar("M", bound=nn.Module)
 
 
 def save_atomic(obj: object, path: Path) -> None:
@@ -24,7 +22,7 @@ def save_params(model: nn.Module, path: Path) -> None:
     save_atomic(model.state_dict(), path)
 
 
-def load_params(model: M, path: Path) -> M:
+def load_params[M: nn.Module](model: M, path: Path) -> M:
     """Copy the parameters saved at `path` into `model`, in place; return `model`.
 
     The model must have the same architecture: load_state_dict raises if any

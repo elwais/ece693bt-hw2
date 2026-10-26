@@ -16,10 +16,10 @@ from utils import (
     as_tensor,
     built,
     eval_mode,
-    nn_dataclass,
-    seed_everything,
-    save_params,
     get_preferred_device,
+    nn_dataclass,
+    save_params,
+    seed_everything,
 )
 
 

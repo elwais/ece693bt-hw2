@@ -96,28 +96,48 @@ def read_samples(run: Path, base: Path) -> list[Sample]:
         if m is None:
             continue
         step = int(m[2]) if m[2] is not None else None
-        found.append({"epoch": int(m[1]), "step": step, "path": str(png.relative_to(base))})
+        found.append(
+            {"epoch": int(m[1]), "step": step, "path": str(png.relative_to(base))}
+        )
     # The early grids (epoch 1, step N) sort before the end-of-epoch grid of epoch 1.
-    return sorted(found, key=lambda s: (s["epoch"], s["step"] if s["step"] is not None else 10**9))
+    return sorted(
+        found, key=lambda s: (s["epoch"], s["step"] if s["step"] is not None else 10**9)
+    )
 
 
 def read_fid(run: Path) -> list[FidRecord]:
     path = run / "fid.json"
-    return cast("list[FidRecord]", json.loads(path.read_text())) if path.exists() else []
+    return (
+        cast("list[FidRecord]", json.loads(path.read_text())) if path.exists() else []
+    )
 
 
 def pick_reported(records: list[FidRecord], last_epoch: int) -> Reported | None:
     """Lowest val FID over epoch_*.pt; test FID of that checkpoint (final.pt if it is the last)."""
-    val = [r for r in records if r["split"] == "val" and r["checkpoint"].startswith("epoch_")]
+    val = [
+        r
+        for r in records
+        if r["split"] == "val" and r["checkpoint"].startswith("epoch_")
+    ]
     if not val:
         return None
     best = min(val, key=lambda r: r["fid"])
     names = [best["checkpoint"], *(["final.pt"] if best["epoch"] == last_epoch else [])]
     test = next(
-        (r["fid"] for name in names for r in records if r["split"] == "test" and r["checkpoint"] == name),
+        (
+            r["fid"]
+            for name in names
+            for r in records
+            if r["split"] == "test" and r["checkpoint"] == name
+        ),
         None,
     )
-    return {"checkpoint": best["checkpoint"], "epoch": best["epoch"], "val_fid": best["fid"], "test_fid": test}
+    return {
+        "checkpoint": best["checkpoint"],
+        "epoch": best["epoch"],
+        "val_fid": best["fid"],
+        "test_fid": test,
+    }
 
 
 def final_val(records: list[FidRecord], last_epoch: int) -> float | None:
@@ -170,7 +190,13 @@ def read_run(run: Path, base: Path) -> Run | None:
 
 def build(base: Path = Path(".")) -> Manifest:
     runs_dirs = sorted(
-        (d for family in (base / OUTPUTS).iterdir() if family.is_dir() for d in family.iterdir() if d.is_dir()),
+        (
+            d
+            for family in (base / OUTPUTS).iterdir()
+            if family.is_dir()
+            for d in family.iterdir()
+            if d.is_dir()
+        ),
         key=lambda d: d.name,
     )
     runs = [r for d in runs_dirs if (r := read_run(d, base)) is not None]
@@ -179,11 +205,17 @@ def build(base: Path = Path(".")) -> Manifest:
     if dupes:
         raise SystemExit(f"duplicate run keys (args.json name): {dupes}")
     diag = base / OUTPUTS / "diagnostics.json"
-    return {"version": 1, "diagnostics": str(diag.relative_to(base)) if diag.exists() else None, "runs": runs}
+    return {
+        "version": 1,
+        "diagnostics": str(diag.relative_to(base)) if diag.exists() else None,
+        "runs": runs,
+    }
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Write the run manifest for the Typst report.")
+    parser = argparse.ArgumentParser(
+        description="Write the run manifest for the Typst report."
+    )
     _ = parser.add_argument("-o", "--out", type=Path, default=OUTPUTS / "manifest.json")
     out = cast("Path", parser.parse_args().out)
     manifest = build()

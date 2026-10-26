@@ -1,6 +1,7 @@
 from collections.abc import Generator
-from torch import nn, inference_mode
 from contextlib import contextmanager
+
+from torch import inference_mode, nn
 
 
 @contextmanager

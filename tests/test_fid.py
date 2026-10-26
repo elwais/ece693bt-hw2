@@ -1,5 +1,7 @@
 """FID math on synthetic Gaussians, checked against closed forms (no models, no data)."""
 
+import math
+
 import pytest
 import torch
 
@@ -19,7 +21,9 @@ def test_sqrt_psd_squares_back() -> None:
 
 
 def test_identical_stats_give_zero() -> None:
-    feats = torch.randn(500, 128, generator=torch.Generator().manual_seed(1), dtype=torch.float64)
+    feats = torch.randn(
+        500, 128, generator=torch.Generator().manual_seed(1), dtype=torch.float64
+    )
     mu, cov = mean_cov(feats)
     assert abs(fid_from_stats(mu, cov, mu, cov)) < 1e-6
 
@@ -55,7 +59,7 @@ def test_rank_deficient_generated_covariance_stays_finite() -> None:
     real = torch.randn(2000, 128, generator=gen, dtype=torch.float64)
     fake = torch.randn(100, 128, generator=gen, dtype=torch.float64)
     value = fid_from_stats(*mean_cov(real), *mean_cov(fake))
-    assert value == value and value > -1e-6  # not NaN, not meaningfully negative
+    assert not math.isnan(value) and value > -1e-6  # not NaN, not meaningfully negative
 
 
 def test_injected_noise_raises_fid_monotonically() -> None:

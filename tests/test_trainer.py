@@ -8,8 +8,8 @@ import pytest
 import torch
 from torch import nn
 
-from utils import as_tensor
 from trainer import Batch, Stateful, Stats, Trainer, make_run_dir, optimizer_step
+from utils import as_tensor
 
 
 class Toy(Trainer):

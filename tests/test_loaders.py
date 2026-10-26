@@ -11,7 +11,9 @@ def record_calls(monkeypatch: MonkeyPatch) -> list[tuple[str, str]]:
     """Replace the MNIST loaders with recorders; nothing is downloaded."""
     calls: list[tuple[str, str]] = []
 
-    def fake_train_val(scaling: str, *args: object, **kwargs: object) -> tuple[str, str]:
+    def fake_train_val(
+        scaling: str, *args: object, **kwargs: object
+    ) -> tuple[str, str]:
         calls.append(("train_val", scaling))
         return f"train-{scaling}", f"val-{scaling}"
 
@@ -34,5 +36,9 @@ def test_gan_loaders_use_gan_scaling(record_calls: list[tuple[str, str]]) -> Non
 
 def test_vae_loaders_use_vae_scaling(record_calls: list[tuple[str, str]]) -> None:
     loaders = data.vae_loaders()
-    assert (loaders.train, loaders.val, loaders.test) == ("train-vae", "val-vae", "test-vae")
+    assert (loaders.train, loaders.val, loaders.test) == (
+        "train-vae",
+        "val-vae",
+        "test-vae",
+    )
     assert record_calls == [("train_val", "vae"), ("test", "vae")]

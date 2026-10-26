@@ -128,7 +128,9 @@ class VAELog(StepLog):
     recon: list[float] = field(default_factory=list)
     kl: list[float] = field(default_factory=list)
     val_epoch: list[int] = field(default_factory=list)
-    val_loss: list[float] = field(default_factory=list)  # negative ELBO (beta = 1) per image
+    val_loss: list[float] = field(
+        default_factory=list
+    )  # negative ELBO (beta = 1) per image
     val_recon: list[float] = field(default_factory=list)
     val_kl: list[float] = field(default_factory=list)
 

@@ -3,14 +3,14 @@ import math
 from collections.abc import Iterator
 from itertools import chain, repeat
 from pathlib import Path
-from typing import TypeVar, override
+from typing import override
 
-
-from torch import Tensor, nn
 import torch
-from torchvision.utils import save_image  # pyright: ignore[reportUnknownVariableType]  # torchvision has no stubs
-
+from torch import Tensor, nn
 from torch.utils.data import DataLoader
+from torchvision.utils import (
+    save_image,  # pyright: ignore[reportUnknownVariableType]  # torchvision has no stubs
+)
 
 from data import Sample, batches, vae_loaders
 from trainer import Batch, Stateful, Stats, Trainer, make_run_dir, optimizer_step
@@ -35,10 +35,7 @@ def _init_layer(m: nn.Module) -> None:
         _ = nn.init.zeros_(m.bias)
 
 
-M = TypeVar("M", bound=nn.Module)
-
-
-def _dcgan_init(net: M) -> M:
+def _dcgan_init[M: nn.Module](net: M) -> M:
     """Apply Setup's initialization to every layer of `net`; return `net`."""
     return net.apply(_init_layer)
 
@@ -48,7 +45,9 @@ from dcgan import Generator as Decoder
 
 Z_DIM = 100
 LOG_EVERY = 50  # steps between rows of losses.pth
-VAL_SEED = 0  # the validation ELBO reuses the same noise every epoch, so epochs compare fairly
+VAL_SEED = (
+    0  # the validation ELBO reuses the same noise every epoch, so epochs compare fairly
+)
 
 # ---- beta schedules -----------------------------------------------------------
 # The PDF's annealing: beta = 0.01 for the first epoch, then up to 1 by the end of
@@ -74,9 +73,13 @@ def ramp(schedule: str, t: float) -> float:
         case "exponential-annealing":
             return BETA_START * math.pow(r, t)
         case "logarithmic-annealing":
-            return BETA_START + (BETA_END - BETA_START) * math.log1p((r - 1) * t) / math.log(r)
+            return BETA_START + (BETA_END - BETA_START) * math.log1p(
+                (r - 1) * t
+            ) / math.log(r)
         case _:
-            raise ValueError(f"unknown schedule {schedule!r}; expected one of {SCHEDULES}")
+            raise ValueError(
+                f"unknown schedule {schedule!r}; expected one of {SCHEDULES}"
+            )
 
 
 def betas(spec: float | str, steps_per_epoch: int) -> Iterator[float]:
@@ -156,7 +159,9 @@ class Args(argparse.Namespace):
     """Typed command-line arguments; every default is the value used for the main run."""
 
     lr: float = 1e-3
-    beta: float | str = 1.0  # KL weight: a constant (1.0 = plain VAE) or a schedule name
+    beta: float | str = (
+        1.0  # KL weight: a constant (1.0 = plain VAE) or a schedule name
+    )
     epochs: int = 25
     seed: int = 0
     name: str | None = None
@@ -338,7 +343,9 @@ class VAETrainer(Trainer):
     def end_epoch(self) -> None:
         recon, kl = self.validate()
         self.log.push_val(epoch=self.curr_epoch, loss=recon + kl, recon=recon, kl=kl)
-        print(f"epoch {self.curr_epoch:3d}  val -ELBO {recon + kl:.4f}  recon {recon:.4f}  kl {kl:.4f}")
+        print(
+            f"epoch {self.curr_epoch:3d}  val -ELBO {recon + kl:.4f}  recon {recon:.4f}  kl {kl:.4f}"
+        )
         save_samples(
             self.net_dec,
             self.z_fixed,

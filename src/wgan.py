@@ -1,12 +1,13 @@
 import argparse
 from collections.abc import Iterator
 from pathlib import Path
-from typing import TypeVar, override
+from typing import override
 
-
-from torch import Tensor, nn
 import torch
-from torchvision.utils import save_image  # pyright: ignore[reportUnknownVariableType]  # torchvision has no stubs
+from torch import Tensor, nn
+from torchvision.utils import (
+    save_image,  # pyright: ignore[reportUnknownVariableType]  # torchvision has no stubs
+)
 
 from data import gan_loaders
 from trainer import Batch, Stateful, Stats, Trainer, make_run_dir, optimizer_step
@@ -31,10 +32,7 @@ def _init_layer(m: nn.Module) -> None:
         _ = nn.init.zeros_(m.bias)
 
 
-M = TypeVar("M", bound=nn.Module)
-
-
-def _dcgan_init(net: M) -> M:
+def _dcgan_init[M: nn.Module](net: M) -> M:
     """Apply Setup's initialization to every layer of `net`; return `net`."""
     return net.apply(_init_layer)
 
@@ -157,7 +155,9 @@ def save_samples(G: Generator, z: Tensor, path: Path) -> None:
 
 Z_DIM = 100
 CRITIC_STEPS = 5  # critic steps per generator step
-CLIP = 0.01  # critic weights are clamped to [-CLIP, CLIP]; the paper chose it empirically
+CLIP = (
+    0.01  # critic weights are clamped to [-CLIP, CLIP]; the paper chose it empirically
+)
 LOG_EVERY = 50  # steps between rows of losses.pth; a multiple of CRITIC_STEPS
 
 
@@ -180,7 +180,9 @@ class WGANTrainer(Trainer):
 
     def __init__(self, args: Args) -> None:
         # Only generator steps carry loss_G, and log_step reads it.
-        assert LOG_EVERY % CRITIC_STEPS == 0, "every logged step must be a generator step"
+        assert LOG_EVERY % CRITIC_STEPS == 0, (
+            "every logged step must be a generator step"
+        )
         device = get_preferred_device()
         seed_everything(args.seed)
         super().__init__(epochs=args.epochs, device=device, log_every=LOG_EVERY)

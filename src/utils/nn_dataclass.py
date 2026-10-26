@@ -3,16 +3,13 @@
 import inspect
 from dataclasses import MISSING, Field, dataclass, field, fields
 from types import CodeType
-from typing import TYPE_CHECKING, Literal, Protocol, TypeVar, cast
+from typing import TYPE_CHECKING, Literal, Protocol, TypeVar, cast, dataclass_transform
 
-import torch.nn as nn
-from typing_extensions import dataclass_transform
+from torch import nn
 
 if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 
-M = TypeVar("M", bound=nn.Module)
-T = TypeVar("T")
 T_co = TypeVar("T_co", covariant=True)
 
 
@@ -29,6 +26,7 @@ class Factory(Protocol[T_co]):
     __code__: CodeType
 
     def __call__(self) -> T_co: ...
+
 
 # Marks "argument not supplied". A private object, so None stays a valid value.
 _UNSET: object = object()
@@ -58,7 +56,7 @@ def _require_module_class(obj: object) -> type[nn.Module]:
     return obj
 
 
-def built(default_factory: Factory[T], *, init: Literal[False] = False) -> T:
+def built[T](default_factory: Factory[T], *, init: Literal[False] = False) -> T:
     """Declare a field that the class builds itself, rather than taking as an argument.
 
     Shorthand for ``field(init=False, default_factory=default_factory)``. Use it
@@ -92,7 +90,7 @@ def built(default_factory: Factory[T], *, init: Literal[False] = False) -> T:
 
 
 @dataclass_transform(eq_default=False, field_specifiers=(field, built))
-def nn_dataclass(cls: type[M]) -> type[M]:
+def nn_dataclass[M: nn.Module](cls: type[M]) -> type[M]:
     """Give an nn.Module subclass dataclass-style fields and a generated __init__.
 
     Fields are declared as class annotations and bound by name, as with
@@ -198,5 +196,5 @@ def nn_dataclass(cls: type[M]) -> type[M]:
         if callable(post_init):
             _ = post_init()
 
-    setattr(cls, "__init__", custom_init)
+    cls.__init__ = custom_init
     return cls
