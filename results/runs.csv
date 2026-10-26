@@ -30,3 +30,4 @@ outputs/vae/20261026-033100_vae_log,vae,1e-3,,logarithmic-annealing,50,0,epoch_0
 outputs/vae/20261026-033116_vae_lr2e-3,vae,2e-3,,1,50,0,,,,"diverged: KL blew up, NaN tripped the BCE device assert; no epoch checkpoint, no FID"
 outputs/vae/20261026-034001_vae_long,vae,1e-3,,1,300,0,epoch_300.pt,253.3,249.2,"300 ep, ckpt every 10; val FID still falling at ep300; best val = epoch_300.pt; val n=10000 generated vs 5000 real, test n=10000"
 outputs/vae/20261026-034004_vae_lr1e-3_s1,vae,1e-3,,1,50,1,epoch_050.pt,360.7,356.6,"best val = epoch_050.pt; val n=10000 generated vs 5000 real, test n=10000"
+outputs/wgangp/20261026-043437_wgangp_default,wgangp,1e-4,1e-4,,125,0,epoch_125.pt,114.1,112.4,"WGAN-GP paper defaults (Adam 1e-4, betas 0.5/0.9, lambda=10, critic 5); best val = final epoch (still falling); val n=10000 generated vs 5000 real, test n=10000; box pruned to epoch_125.pt + final.pt"
